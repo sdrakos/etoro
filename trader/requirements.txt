@@ -1,0 +1,9 @@
+backtrader>=1.9.78
+pandas>=2.0
+numpy>=1.24
+statsmodels>=0.14
+polygon-api-client>=1.14
+python-dotenv>=1.0
+matplotlib>=3.7
+pytest>=8.0
+pytest-cov>=5.0
