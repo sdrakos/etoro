@@ -11,8 +11,8 @@ STRATEGY_REGISTRY: dict[str, type] = {}
 
 
 class _AutoRegisterMeta(type(bt.Strategy)):
-    def __init__(cls, name_attr, bases, namespace, **kwargs):
-        super().__init__(name_attr, bases, namespace, **kwargs)
+    def __init__(cls, name_attr, bases, namespace, *args, **kwargs):
+        super().__init__(name_attr, bases, namespace, *args, **kwargs)
         cls_name = namespace.get("name")
         if cls_name and name_attr != "BaseStrategy":
             STRATEGY_REGISTRY[cls_name] = cls
@@ -24,7 +24,8 @@ class BaseStrategy(bt.Strategy, metaclass=_AutoRegisterMeta):
     description: ClassVar[str] = ""
     params_dataclass: ClassVar[type] = type(None)
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self._trade_log: list[dict] = []
 
     def log_trade(self, side: str, ticker: str, size: float, price: float, reason: str):
