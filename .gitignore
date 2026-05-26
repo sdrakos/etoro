@@ -1,0 +1,60 @@
+# Secrets — never commit
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Virtual envs
+venv/
+.venv/
+env/
+ENV/
+
+# Local data / cache
+*.db
+*.sqlite
+*.sqlite3
+.etoro/
+~/.etoro/
+trader/cache/
+results/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Backtest artifacts
+*.log
+*.png
+!docs/**/*.png
+*.csv
+!tests/fixtures/*.csv
+
+# Node (front/)
+node_modules/
+dist/
+build/
+.next/
+
+# Skill zip artifacts
+*.skill

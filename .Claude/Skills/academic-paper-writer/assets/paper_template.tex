@@ -1,0 +1,205 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath, mathtools, amssymb, amsthm}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage[colorlinks=true, linkcolor=blue, citecolor=blue, urlcolor=blue]{hyperref}
+
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{corollary}[theorem]{Corollary}
+
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{remark}[theorem]{Remark}
+
+% Custom todo box for in-progress items
+\newcommand{\todo}[1]{\vspace{0.3em}\noindent\fbox{\parbox{0.95\textwidth}{\textit{\textbf{Draft note:} #1}}}\vspace{0.3em}}
+
+% ============================================================
+% TITLE
+% ============================================================
+
+\title{\textbf{Paper Title:\\
+  Subtitle If Present}}
+\author{Stefanos Drakos\\
+\small{AGEL AI I.K.E., Rhodes, Greece}\\
+\small{ORCID: 0000-0001-7417-2444}}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+% ============================================================
+% ABSTRACT
+% ============================================================
+
+\begin{abstract}
+One-paragraph summary, roughly 200--300 words. State the problem, the
+approach, the key contribution, and one headline result. End with a
+sentence locating the paper relative to prior work (e.g., ``These
+results extend the framework of [X] by introducing [Y]'').
+\end{abstract}
+
+% ============================================================
+% 1. INTRODUCTION
+% ============================================================
+
+\section{Introduction}
+\label{sec:intro}
+
+Text of introduction, typically 3--5 paragraphs:
+
+\paragraph{Paragraph 1: Problem.} State the applied problem and
+why it matters. Keep it concrete (``personalized therapy scheduling
+for tumor growth'', not ``decision-making under uncertainty'').
+
+\paragraph{Paragraph 2: Prior work.} Locate the paper relative to
+the two or three most relevant lines of research. Cite narrowly,
+not exhaustively --- this is not a review paper.
+
+\paragraph{Paragraph 3: Contribution.} State the specific
+contribution in bullet form if helpful. Be concrete about what's
+new versus what extends existing work.
+
+\paragraph{Paragraph 4: Outline.} Brief section-by-section preview.
+
+% ============================================================
+% 2. MODEL AND NOTATION
+% ============================================================
+
+\section{Model and Notation}
+\label{sec:model}
+
+Introduce the SDE/FPE/model. Define every symbol that appears later.
+
+\begin{equation}
+\frac{\partial P}{\partial t} = -\frac{\partial}{\partial y}(\mu(y,t) P) + \frac{1}{2}\frac{\partial^2}{\partial y^2}(D(t) P)
+\label{eq:fpe}
+\end{equation}
+
+% ============================================================
+% 3. MAIN RESULT OR METHODS
+% ============================================================
+
+\section{Main Result}
+\label{sec:main}
+
+\begin{theorem}[Descriptive name]
+\label{thm:main}
+Let [hypothesis]. Then [conclusion].
+\end{theorem}
+
+\begin{proof}
+See Appendix~\ref{app:proof}.
+\end{proof}
+
+% ============================================================
+% 4. NUMERICAL EXPERIMENTS
+% ============================================================
+
+\section{Numerical Experiments}
+\label{sec:experiments}
+
+Report 3--5 experiments testing the main claim. Each experiment:
+\begin{itemize}
+\item Setup: parameters, patient population, discretization
+\item Metrics: what's measured, expected values under the theorem
+\item Results: table or figure with computed values vs predicted
+\item Interpretation: one sentence summary per experiment
+\end{itemize}
+
+% ============================================================
+% 5. DISCUSSION
+% ============================================================
+
+\section{Discussion}
+\label{sec:discussion}
+
+\subsection{Scope and limitations}
+
+Name explicitly what this paper does not cover.
+
+\subsection{Connections to related work}
+
+Compare to 2--3 closest prior works. Be specific about where
+approaches agree and where they differ.
+
+\subsection{Future directions}
+
+Concrete next steps, ideally 2--4 enumerated items.
+
+% ============================================================
+% 6. SOFTWARE
+% ============================================================
+
+\section{Software}
+\label{sec:software}
+
+Brief description of companion package:
+\begin{itemize}
+\item Language and dependencies
+\item Public URL (GitHub, Zenodo DOI)
+\item Reproducibility statement (all figures in this paper reproduced
+  by running \texttt{scripts/reproduce\_all.py})
+\end{itemize}
+
+% ============================================================
+% REFERENCES
+% ============================================================
+
+\section*{References}
+
+\begin{list}{}{\leftmargin 2em \itemindent -2em \itemsep 4pt}
+
+\item Author, A.\ B., \& Author, C.\ D.\ (YYYY). Title of the paper
+in plain text. \emph{Journal Name} volume(issue):pages.
+\href{https://doi.org/DOI}{doi:DOI}
+
+\end{list}
+
+% ============================================================
+% APPENDIX
+% ============================================================
+
+\appendix
+
+\section{Proof of Theorem~\ref{thm:main}}
+\label{app:proof}
+
+\textit{\textbf{Status of this appendix:} brief summary of what the
+proof covers and what it defers.}
+
+\subsection{Preliminary definitions}
+
+\subsection{Core lemmas}
+
+\begin{lemma}[Name]
+\label{lem:support}
+Statement.
+\end{lemma}
+
+\begin{proof}
+Proof body.
+\end{proof}
+
+\subsection{Proof of main theorem}
+
+\begin{proof}[Proof of Theorem~\ref{thm:main}]
+Proof body using the lemmas.
+\end{proof}
+
+\subsection{Scope remark}
+
+\begin{remark}[Scope of the theorem]
+Theorem~\ref{thm:main} does not claim:
+\begin{enumerate}
+\item [specific limitation 1];
+\item [specific limitation 2].
+\end{enumerate}
+\end{remark}
+
+\end{document}
