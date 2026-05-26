@@ -49,6 +49,19 @@ def test_partial_gap_fetches_delta_only(temp_db, monkeypatch):
     # Two API calls: left gap (2023-01-01..2024-01-01) + right gap (2024-02-01..2024-02-28)
     assert fake_client.list_aggs.call_count == 2
 
+    # Verify the date boundaries passed to the SDK — gap math is the
+    # easiest thing to regress and the most consequential.
+    call_args = [call.args for call in fake_client.list_aggs.call_args_list]
+    # Each call: (ticker, 1, "day", from_iso, to_iso, limit=...)
+    iso_ranges = [(a[3], a[4]) for a in call_args]
+    # Left gap: starts 2023-01-01, ends before Jan 2 2024
+    # Right gap: starts after Jan 31 2024, ends 2024-02-28
+    iso_ranges.sort()
+    assert iso_ranges[0][0] == "2023-01-01"
+    assert iso_ranges[0][1] <= "2024-01-02"   # ends at or before cmin date
+    assert iso_ranges[1][0] >= "2024-01-31"   # starts at or after cmax date
+    assert iso_ranges[1][1] == "2024-02-28"
+
 
 def test_unknown_ticker_returns_empty(temp_db, monkeypatch):
     monkeypatch.setattr("trader.data.loader.CACHE_DB", temp_db)
@@ -57,3 +70,10 @@ def test_unknown_ticker_returns_empty(temp_db, monkeypatch):
     with patch("trader.data.loader._client", return_value=fake_client):
         df = load_bars("ZZZZ", date(2024, 1, 1), date(2024, 1, 5))
     assert df.empty
+
+
+def test_intraday_timespan_raises(temp_db, monkeypatch):
+    """Phase 1 explicitly rejects intraday — guard against latent gap bug."""
+    monkeypatch.setattr("trader.data.loader.CACHE_DB", temp_db)
+    with pytest.raises(NotImplementedError, match="timespan='day'"):
+        load_bars("AAPL", date(2024, 1, 1), date(2024, 1, 5), timespan="minute")

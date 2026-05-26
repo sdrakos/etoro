@@ -43,6 +43,11 @@ def _gaps(coverage: Optional[tuple[int, int]], start_ms: int, end_ms: int) -> li
 def load_bars(ticker: str, start: date, end: date,
               timespan: str = "day") -> pd.DataFrame:
     """Cache-aside fetch. Returns DataFrame indexed by datetime (UTC)."""
+    if timespan != "day":
+        raise NotImplementedError(
+            f"Only timespan='day' is supported in Phase 1 (got {timespan!r}). "
+            "Intraday support requires datetime-precision gap calculation."
+        )
     cache = Cache(CACHE_DB)
     start_ms, end_ms = _to_ms(start), _to_ms(end)
 
