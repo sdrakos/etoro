@@ -57,11 +57,16 @@ def extract_metrics(strat: bt.Strategy) -> dict[str, Any]:
 
     avg_len = trades.get("len", {}).get("average", 0)
 
+    # When the strategy never traded, risk metrics are meaningless — null them out
+    if total_trades == 0:
+        sharpe = None
+        sortino = None
+
     return {
         "total_return": round(total_return, 6),
         "cagr": round(cagr, 6),
-        "sharpe": round(sharpe, 4) if sharpe else None,
-        "sortino": round(sortino, 4) if sortino else None,
+        "sharpe": round(sharpe, 4) if sharpe is not None else None,
+        "sortino": round(sortino, 4) if sortino is not None else None,
         "max_drawdown": -round(abs(max_dd), 6),
         "calmar": round(calmar, 4),
         "win_rate": round(win_rate, 4),
