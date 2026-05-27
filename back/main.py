@@ -10,6 +10,7 @@ from routers import (
     indices,
     options,
     reference,
+    screener,
     stocks,
 )
 
@@ -35,6 +36,7 @@ app.include_router(economy.router)
 app.include_router(alternative.router)
 app.include_router(filings.router)
 app.include_router(reference.router)
+app.include_router(screener.router)
 
 
 @app.get("/", tags=["health"])
