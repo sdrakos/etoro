@@ -54,8 +54,8 @@ def run_backtest(
             raise RuntimeError(f"No bars for {ticker} in [{start}, {end}]")
         cerebro.adddata(_bars_to_feed(df, ticker))
 
-    bt_params = {k: v for k, v in params.items()
-                 if k in {p[0] for p in strategy_cls.params}}
+    valid_param_names = set(strategy_cls.params._getkeys())
+    bt_params = {k: v for k, v in params.items() if k in valid_param_names}
     cerebro.addstrategy(strategy_cls, **bt_params)
     attach_default_analyzers(cerebro)
 

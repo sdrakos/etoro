@@ -10,13 +10,33 @@ def attach_default_analyzers(cerebro: bt.Cerebro) -> None:
     cerebro.addanalyzer(bt.analyzers.DrawDown, _name="dd")
     cerebro.addanalyzer(bt.analyzers.Returns, _name="returns")
     cerebro.addanalyzer(bt.analyzers.TradeAnalyzer, _name="trades")
-    cerebro.addanalyzer(bt.analyzers.SortinoRatio, _name="sortino", riskfreerate=0.04)
+    # NOTE: backtrader has no built-in SortinoRatio — computed manually from TimeReturn below.
     cerebro.addanalyzer(bt.analyzers.TimeReturn, _name="timereturn", timeframe=bt.TimeFrame.Days)
+
+
+def _compute_sortino(daily_returns: dict, riskfreerate: float = 0.04) -> float | None:
+    """Annualized Sortino ratio from daily returns. None if insufficient data."""
+    import math
+    if not daily_returns:
+        return None
+    rets = list(daily_returns.values())
+    if len(rets) < 2:
+        return None
+    daily_rf = riskfreerate / 252.0
+    excess = [r - daily_rf for r in rets]
+    downside = [e for e in excess if e < 0]
+    if not downside:
+        return None
+    downside_dev = math.sqrt(sum(d * d for d in downside) / len(rets))
+    if downside_dev == 0:
+        return None
+    mean_excess = sum(excess) / len(excess)
+    return (mean_excess / downside_dev) * math.sqrt(252)
 
 
 def extract_metrics(strat: bt.Strategy) -> dict[str, Any]:
     sharpe = strat.analyzers.sharpe.get_analysis().get("sharperatio")
-    sortino = strat.analyzers.sortino.get_analysis().get("sortinoratio")
+    sortino = _compute_sortino(strat.analyzers.timereturn.get_analysis())
     dd = strat.analyzers.dd.get_analysis()
     returns = strat.analyzers.returns.get_analysis()
     trades = strat.analyzers.trades.get_analysis()
