@@ -1,6 +1,8 @@
 """Fetch S&P 500 + NASDAQ-100 constituents from Wikipedia, write JSON files.
 
 Run from etoro/: `python back/scripts/build_universes.py`
+
+This is a maintenance script — run quarterly to refresh the universe lists.
 """
 from __future__ import annotations
 import json
@@ -13,13 +15,17 @@ import pandas as pd
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-# Wikipedia rejects requests without a real User-Agent (returns HTTP 403).
-_opener = urllib.request.build_opener()
-_opener.addheaders = [(
-    "User-Agent",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-)]
-urllib.request.install_opener(_opener)
+
+def _install_user_agent() -> None:
+    """Wikipedia returns 403 to default Python User-Agent. Set a real one.
+
+    Called only from __main__ to avoid polluting global urllib state on import.
+    """
+    opener = urllib.request.build_opener()
+    opener.addheaders = [
+        ("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+    ]
+    urllib.request.install_opener(opener)
 
 
 def _normalize_ticker(t: str) -> str:
@@ -27,10 +33,21 @@ def _normalize_ticker(t: str) -> str:
     return str(t).strip().replace(".", "-")
 
 
-def build_sp500():
+def _require_columns(df: pd.DataFrame, expected: list[str], label: str) -> None:
+    missing = [c for c in expected if c not in df.columns]
+    if missing:
+        raise RuntimeError(
+            f"{label}: Wikipedia table is missing expected columns {missing}. "
+            f"Got columns: {list(df.columns)}. The table format may have changed — "
+            f"update the column names in build_universes.py."
+        )
+
+
+def build_sp500() -> None:
     url = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
     tables = pd.read_html(url)
     df = tables[0]  # first table = constituents
+    _require_columns(df, ["Symbol", "Security", "GICS Sector"], "S&P 500")
     tickers = []
     for _, row in df.iterrows():
         tickers.append({
@@ -39,11 +56,13 @@ def build_sp500():
             "sector": str(row["GICS Sector"]).strip(),
         })
     out = {"as_of": date.today().isoformat(), "tickers": tickers}
-    (DATA_DIR / "sp500.json").write_text(json.dumps(out, indent=2), encoding="utf-8")
-    print(f"sp500.json - {len(tickers)} tickers")
+    (DATA_DIR / "sp500.json").write_text(
+        json.dumps(out, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+    print(f"sp500.json — {len(tickers)} tickers")
 
 
-def build_nasdaq100():
+def build_nasdaq100() -> None:
     url = "https://en.wikipedia.org/wiki/Nasdaq-100"
     tables = pd.read_html(url)
     df = None
@@ -55,8 +74,10 @@ def build_nasdaq100():
     if df is None:
         raise RuntimeError("Could not locate NASDAQ-100 constituents table on Wikipedia")
     ticker_col = "Ticker" if "Ticker" in df.columns else "Symbol"
+    # Match GICS Sector / Sector / ICB Industry — but NOT "Sub-Industry"
     sector_col = next(
-        (c for c in df.columns if any(k in str(c) for k in ("Sector", "GICS", "ICB Industry", "Industry"))),
+        (c for c in df.columns
+         if str(c) in {"GICS Sector", "Sector", "ICB Industry", "Industry"}),
         None,
     )
     tickers = []
@@ -68,10 +89,13 @@ def build_nasdaq100():
             "sector": sector,
         })
     out = {"as_of": date.today().isoformat(), "tickers": tickers}
-    (DATA_DIR / "nasdaq100.json").write_text(json.dumps(out, indent=2), encoding="utf-8")
-    print(f"nasdaq100.json - {len(tickers)} tickers")
+    (DATA_DIR / "nasdaq100.json").write_text(
+        json.dumps(out, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+    print(f"nasdaq100.json — {len(tickers)} tickers")
 
 
 if __name__ == "__main__":
+    _install_user_agent()
     build_sp500()
     build_nasdaq100()

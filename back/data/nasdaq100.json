@@ -4,507 +4,507 @@
     {
       "ticker": "ADBE",
       "name": "Adobe Inc.",
-      "sector": "Technology"
+      "sector": "Unknown"
     },
     {
       "ticker": "AMD",
       "name": "Advanced Micro Devices",
-      "sector": "Technology"
+      "sector": "Unknown"
     },
     {
       "ticker": "ABNB",
       "name": "Airbnb",
-      "sector": "Consumer Discretionary"
+      "sector": "Unknown"
     },
     {
       "ticker": "ALNY",
       "name": "Alnylam Pharmaceuticals",
-      "sector": "Health Care"
+      "sector": "Unknown"
     },
     {
       "ticker": "GOOGL",
       "name": "Alphabet Inc. (Class A)",
-      "sector": "Technology"
+      "sector": "Unknown"
     },
     {
       "ticker": "GOOG",
       "name": "Alphabet Inc. (Class C)",
-      "sector": "Technology"
+      "sector": "Unknown"
     },
     {
       "ticker": "AMZN",
       "name": "Amazon",
-      "sector": "Consumer Discretionary"
+      "sector": "Unknown"
     },
     {
       "ticker": "AEP",
       "name": "American Electric Power",
-      "sector": "Utilities"
+      "sector": "Unknown"
     },
     {
       "ticker": "AMGN",
       "name": "Amgen",
-      "sector": "Health Care"
+      "sector": "Unknown"
     },
     {
       "ticker": "ADI",
       "name": "Analog Devices",
-      "sector": "Technology"
+      "sector": "Unknown"
     },
     {
       "ticker": "AAPL",
       "name": "Apple Inc.",
-      "sector": "Technology"
+      "sector": "Unknown"
     },
     {
       "ticker": "AMAT",
       "name": "Applied Materials",
-      "sector": "Technology"
+      "sector": "Unknown"
     },
     {
       "ticker": "APP",
       "name": "AppLovin",
-      "sector": "Technology"
+      "sector": "Unknown"
     },
     {
       "ticker": "ARM",
       "name": "Arm Holdings",
-      "sector": "Technology"
+      "sector": "Unknown"
     },
     {
       "ticker": "ASML",
       "name": "ASML Holding",
-      "sector": "Technology"
+      "sector": "Unknown"
     },
     {
       "ticker": "ADSK",
       "name": "Autodesk",
-      "sector": "Technology"
+      "sector": "Unknown"
     },
     {
       "ticker": "ADP",
       "name": "Automatic Data Processing",
-      "sector": "Industrials"
+      "sector": "Unknown"
     },
     {
       "ticker": "AXON",
       "name": "Axon Enterprise",
-      "sector": "Industrials"
+      "sector": "Unknown"
     },
     {
       "ticker": "BKR",
       "name": "Baker Hughes",
-      "sector": "Energy"
+      "sector": "Unknown"
     },
     {
       "ticker": "BKNG",
       "name": "Booking Holdings",
-      "sector": "Consumer Discretionary"
+      "sector": "Unknown"
     },
     {
       "ticker": "AVGO",
       "name": "Broadcom",
-      "sector": "Technology"
+      "sector": "Unknown"
     },
     {
       "ticker": "CDNS",
       "name": "Cadence Design Systems",
-      "sector": "Technology"
+      "sector": "Unknown"
     },
     {
       "ticker": "CHTR",
       "name": "Charter Communications",
-      "sector": "Telecommunications"
+      "sector": "Unknown"
     },
     {
       "ticker": "CTAS",
       "name": "Cintas",
-      "sector": "Industrials"
+      "sector": "Unknown"
     },
     {
       "ticker": "CSCO",
       "name": "Cisco",
-      "sector": "Telecommunications"
+      "sector": "Unknown"
     },
     {
       "ticker": "CCEP",
       "name": "Coca-Cola Europacific Partners",
-      "sector": "Consumer Staples"
+      "sector": "Unknown"
     },
     {
       "ticker": "CTSH",
       "name": "Cognizant",
-      "sector": "Technology"
+      "sector": "Unknown"
     },
     {
       "ticker": "CMCSA",
       "name": "Comcast",
-      "sector": "Telecommunications"
+      "sector": "Unknown"
     },
     {
       "ticker": "CEG",
       "name": "Constellation Energy",
-      "sector": "Utilities"
+      "sector": "Unknown"
     },
     {
       "ticker": "CPRT",
       "name": "Copart",
-      "sector": "Consumer Discretionary"
+      "sector": "Unknown"
     },
     {
       "ticker": "COST",
       "name": "Costco",
-      "sector": "Consumer Discretionary"
+      "sector": "Unknown"
     },
     {
       "ticker": "CRWD",
       "name": "CrowdStrike",
-      "sector": "Technology"
+      "sector": "Unknown"
     },
     {
       "ticker": "CSX",
       "name": "CSX Corporation",
-      "sector": "Industrials"
+      "sector": "Unknown"
     },
     {
       "ticker": "DDOG",
       "name": "Datadog",
-      "sector": "Technology"
+      "sector": "Unknown"
     },
     {
       "ticker": "DXCM",
       "name": "DexCom",
-      "sector": "Health Care"
+      "sector": "Unknown"
     },
     {
       "ticker": "FANG",
       "name": "Diamondback Energy",
-      "sector": "Energy"
+      "sector": "Unknown"
     },
     {
       "ticker": "DASH",
       "name": "DoorDash",
-      "sector": "Technology"
+      "sector": "Unknown"
     },
     {
       "ticker": "EA",
       "name": "Electronic Arts",
-      "sector": "Consumer Discretionary"
+      "sector": "Unknown"
     },
     {
       "ticker": "EXC",
       "name": "Exelon",
-      "sector": "Utilities"
+      "sector": "Unknown"
     },
     {
       "ticker": "FAST",
       "name": "Fastenal",
-      "sector": "Industrials"
+      "sector": "Unknown"
     },
     {
       "ticker": "FER",
       "name": "Ferrovial",
-      "sector": "Industrials"
+      "sector": "Unknown"
     },
     {
       "ticker": "FTNT",
       "name": "Fortinet",
-      "sector": "Technology"
+      "sector": "Unknown"
     },
     {
       "ticker": "GEHC",
       "name": "GE HealthCare",
-      "sector": "Health Care"
+      "sector": "Unknown"
     },
     {
       "ticker": "GILD",
       "name": "Gilead Sciences",
-      "sector": "Health Care"
+      "sector": "Unknown"
     },
     {
       "ticker": "HON",
       "name": "Honeywell",
-      "sector": "Industrials"
+      "sector": "Unknown"
     },
     {
       "ticker": "IDXX",
       "name": "Idexx Laboratories",
-      "sector": "Health Care"
+      "sector": "Unknown"
     },
     {
       "ticker": "INSM",
       "name": "Insmed Incorporated",
-      "sector": "Health Care"
+      "sector": "Unknown"
     },
     {
       "ticker": "INTC",
       "name": "Intel",
-      "sector": "Technology"
+      "sector": "Unknown"
     },
     {
       "ticker": "INTU",
       "name": "Intuit",
-      "sector": "Technology"
+      "sector": "Unknown"
     },
     {
       "ticker": "ISRG",
       "name": "Intuitive Surgical",
-      "sector": "Health Care"
+      "sector": "Unknown"
     },
     {
       "ticker": "KDP",
       "name": "Keurig Dr Pepper",
-      "sector": "Consumer Staples"
+      "sector": "Unknown"
     },
     {
       "ticker": "KLAC",
       "name": "KLA Corporation",
-      "sector": "Technology"
+      "sector": "Unknown"
     },
     {
       "ticker": "KHC",
       "name": "Kraft Heinz",
-      "sector": "Consumer Staples"
+      "sector": "Unknown"
     },
     {
       "ticker": "LRCX",
       "name": "Lam Research",
-      "sector": "Technology"
+      "sector": "Unknown"
     },
     {
       "ticker": "LIN",
       "name": "Linde plc",
-      "sector": "Basic Materials"
+      "sector": "Unknown"
     },
     {
       "ticker": "LITE",
       "name": "Lumentum",
-      "sector": "Technology"
+      "sector": "Unknown"
     },
     {
       "ticker": "MAR",
       "name": "Marriott International",
-      "sector": "Consumer Discretionary"
+      "sector": "Unknown"
     },
     {
       "ticker": "MRVL",
       "name": "Marvell Technology",
-      "sector": "Technology"
+      "sector": "Unknown"
     },
     {
       "ticker": "MELI",
       "name": "Mercado Libre",
-      "sector": "Consumer Discretionary"
+      "sector": "Unknown"
     },
     {
       "ticker": "META",
       "name": "Meta Platforms",
-      "sector": "Technology"
+      "sector": "Unknown"
     },
     {
       "ticker": "MCHP",
       "name": "Microchip Technology",
-      "sector": "Technology"
+      "sector": "Unknown"
     },
     {
       "ticker": "MU",
       "name": "Micron Technology",
-      "sector": "Technology"
+      "sector": "Unknown"
     },
     {
       "ticker": "MSFT",
       "name": "Microsoft",
-      "sector": "Technology"
+      "sector": "Unknown"
     },
     {
       "ticker": "MSTR",
       "name": "MicroStrategy",
-      "sector": "Technology"
+      "sector": "Unknown"
     },
     {
       "ticker": "MDLZ",
       "name": "Mondelez International",
-      "sector": "Consumer Staples"
+      "sector": "Unknown"
     },
     {
       "ticker": "MPWR",
       "name": "Monolithic Power Systems",
-      "sector": "Technology"
+      "sector": "Unknown"
     },
     {
       "ticker": "MNST",
       "name": "Monster Beverage",
-      "sector": "Consumer Staples"
+      "sector": "Unknown"
     },
     {
       "ticker": "NFLX",
       "name": "Netflix, Inc.",
-      "sector": "Consumer Discretionary"
+      "sector": "Unknown"
     },
     {
       "ticker": "NVDA",
       "name": "Nvidia",
-      "sector": "Technology"
+      "sector": "Unknown"
     },
     {
       "ticker": "NXPI",
       "name": "NXP Semiconductors",
-      "sector": "Technology"
+      "sector": "Unknown"
     },
     {
       "ticker": "ORLY",
       "name": "O'Reilly Automotive",
-      "sector": "Consumer Discretionary"
+      "sector": "Unknown"
     },
     {
       "ticker": "ODFL",
       "name": "Old Dominion Freight Line",
-      "sector": "Industrials"
+      "sector": "Unknown"
     },
     {
       "ticker": "PCAR",
       "name": "Paccar",
-      "sector": "Consumer Discretionary"
+      "sector": "Unknown"
     },
     {
       "ticker": "PLTR",
       "name": "Palantir Technologies",
-      "sector": "Technology"
+      "sector": "Unknown"
     },
     {
       "ticker": "PANW",
       "name": "Palo Alto Networks",
-      "sector": "Technology"
+      "sector": "Unknown"
     },
     {
       "ticker": "PAYX",
       "name": "Paychex",
-      "sector": "Industrials"
+      "sector": "Unknown"
     },
     {
       "ticker": "PYPL",
       "name": "PayPal",
-      "sector": "Industrials"
+      "sector": "Unknown"
     },
     {
       "ticker": "PDD",
       "name": "PDD Holdings",
-      "sector": "Technology"
+      "sector": "Unknown"
     },
     {
       "ticker": "PEP",
       "name": "PepsiCo",
-      "sector": "Consumer Staples"
+      "sector": "Unknown"
     },
     {
       "ticker": "QCOM",
       "name": "Qualcomm",
-      "sector": "Technology"
+      "sector": "Unknown"
     },
     {
       "ticker": "REGN",
       "name": "Regeneron Pharmaceuticals",
-      "sector": "Health Care"
+      "sector": "Unknown"
     },
     {
       "ticker": "ROP",
       "name": "Roper Technologies",
-      "sector": "Technology"
+      "sector": "Unknown"
     },
     {
       "ticker": "ROST",
       "name": "Ross Stores",
-      "sector": "Consumer Discretionary"
+      "sector": "Unknown"
     },
     {
       "ticker": "SNDK",
       "name": "Sandisk",
-      "sector": "Technology"
+      "sector": "Unknown"
     },
     {
       "ticker": "STX",
       "name": "Seagate Technology",
-      "sector": "Technology"
+      "sector": "Unknown"
     },
     {
       "ticker": "SHOP",
       "name": "Shopify",
-      "sector": "Technology"
+      "sector": "Unknown"
     },
     {
       "ticker": "SBUX",
       "name": "Starbucks",
-      "sector": "Consumer Discretionary"
+      "sector": "Unknown"
     },
     {
       "ticker": "SNPS",
       "name": "Synopsys",
-      "sector": "Technology"
+      "sector": "Unknown"
     },
     {
       "ticker": "TMUS",
       "name": "T-Mobile US",
-      "sector": "Telecommunications"
+      "sector": "Unknown"
     },
     {
       "ticker": "TTWO",
       "name": "Take-Two Interactive",
-      "sector": "Consumer Discretionary"
+      "sector": "Unknown"
     },
     {
       "ticker": "TSLA",
       "name": "Tesla, Inc.",
-      "sector": "Consumer Discretionary"
+      "sector": "Unknown"
     },
     {
       "ticker": "TXN",
       "name": "Texas Instruments",
-      "sector": "Technology"
+      "sector": "Unknown"
     },
     {
       "ticker": "TRI",
       "name": "Thomson Reuters",
-      "sector": "Technology"
+      "sector": "Unknown"
     },
     {
       "ticker": "VRSK",
       "name": "Verisk Analytics",
-      "sector": "Industrials"
+      "sector": "Unknown"
     },
     {
       "ticker": "VRTX",
       "name": "Vertex Pharmaceuticals",
-      "sector": "Health Care"
+      "sector": "Unknown"
     },
     {
       "ticker": "WMT",
       "name": "Walmart",
-      "sector": "Consumer Discretionary"
+      "sector": "Unknown"
     },
     {
       "ticker": "WBD",
       "name": "Warner Bros. Discovery",
-      "sector": "Consumer Discretionary"
+      "sector": "Unknown"
     },
     {
       "ticker": "WDC",
       "name": "Western Digital",
-      "sector": "Technology"
+      "sector": "Unknown"
     },
     {
       "ticker": "WDAY",
       "name": "Workday, Inc.",
-      "sector": "Technology"
+      "sector": "Unknown"
     },
     {
       "ticker": "XEL",
       "name": "Xcel Energy",
-      "sector": "Utilities"
+      "sector": "Unknown"
     },
     {
       "ticker": "ZS",
       "name": "Zscaler",
-      "sector": "Technology"
+      "sector": "Unknown"
     }
   ]
 }
