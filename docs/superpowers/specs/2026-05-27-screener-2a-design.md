@@ -2,7 +2,7 @@
 
 **Status:** Design approved 2026-05-27
 **Owner:** sdrakos
-**Scope:** The first slice of the TradingView-style Screener UI. Single Overview tab, 500-stock universe (S&P 500), 8 columns. Foundation for sub-phases 2B-2E (extra tabs, advanced filters, watchlist sidebar) — none of which are in this spec.
+**Scope:** The first slice of the TradingView-style Screener UI. Single Overview tab, 8 columns, two switchable universes: **S&P 500** (~500 stocks) and **NASDAQ 100** (~100 stocks). Foundation for sub-phases 2B-2E (extra tabs, advanced filters, watchlist sidebar) — none of which are in this spec.
 
 ## Context
 
@@ -20,12 +20,13 @@ The end-state vision (from `p_debug/p1.png`) is a TradingView-style screener wit
 
 ## Goals
 
-1. Ship a working screener UI that loads ~500 S&P 500 stocks and renders 8 columns: ticker, name, sector, price, change %, volume, market cap, P/E ratio.
-2. Sort by any column (asc/desc).
-3. Search by ticker or name (client-side, debounced, case-insensitive substring).
-4. Dark theme matching TradingView aesthetic.
-5. Data refresh: auto every 60s + manual button, single backend call per refresh.
-6. End-to-end testable (backend pytest + frontend Vitest + one Playwright happy-path).
+1. Ship a working screener UI that loads stocks from a selectable universe (S&P 500 or NASDAQ 100) and renders 8 columns: ticker, name, sector, price, change %, volume, market cap, P/E ratio.
+2. Universe selector at the top of the page: segmented control with three options — `S&P 500` (default), `NASDAQ 100`, `Combined` (deduplicated union — ~520 unique tickers).
+3. Sort by any column (asc/desc).
+4. Search by ticker or name (client-side, debounced, case-insensitive substring).
+5. Dark theme matching TradingView aesthetic.
+6. Data refresh: auto every 60s + manual button, single backend call per universe per refresh.
+7. End-to-end testable (backend pytest + frontend Vitest + one Playwright happy-path).
 
 ## Non-goals
 
@@ -46,9 +47,10 @@ The end-state vision (from `p_debug/p1.png`) is a TradingView-style screener wit
 etoro/
 ├── back/                                  (existing — extended)
 │   ├── routers/
-│   │   └── screener.py                    NEW: GET /screener/sp500
+│   │   └── screener.py                    NEW: GET /screener/{universe}
 │   ├── data/                              NEW directory
 │   │   ├── sp500.json                     curated S&P 500 list
+│   │   ├── nasdaq100.json                 curated NASDAQ 100 list
 │   │   └── metadata_cache.py              SQLite cache for slow-changing fields
 │   ├── main.py                            (modified: include screener router)
 │   └── tests/
@@ -68,6 +70,7 @@ etoro/
     │   ├── components/
     │   │   ├── ScreenerTable.tsx          Tanstack Table
     │   │   ├── SearchBox.tsx
+    │   │   ├── UniverseSelector.tsx       segmented control (S&P / NDX / Combined)
     │   │   └── ColumnHeader.tsx
     │   ├── hooks/
     │   │   └── useScreenerData.ts         React Query wrapper
@@ -104,7 +107,7 @@ No router (single page for 2A). No state management library (React Query covers 
 
 ### Backend additions
 
-**`back/data/sp500.json`** — static curated list:
+**`back/data/sp500.json` and `back/data/nasdaq100.json`** — static curated lists, same shape:
 
 ```json
 {
@@ -117,7 +120,9 @@ No router (single page for 2A). No state management library (React Query covers 
 }
 ```
 
-500 entries with ticker + name + sector. Refresh quarterly via a manual script (out of scope for 2A — initial seed is sufficient).
+`sp500.json` has ~500 entries, `nasdaq100.json` has ~100 entries with significant overlap (mega-cap tech is in both). Refresh quarterly via a manual script (out of scope for 2A — initial seed is sufficient).
+
+**Combined universe** is computed at request time as the deduplicated union (key: `ticker`). Same metadata cache backs both — no duplication of `screener_metadata` rows.
 
 **`back/data/metadata_cache.py`** — SQLite store:
 
@@ -132,19 +137,27 @@ CREATE TABLE screener_metadata (
 
 TTL: 24 hours. On query, stale rows are refreshed by calling `get_ticker_details(ticker)` + `list_ratios(ticker)`. Cache lives at `~/.etoro/screener_metadata.db`.
 
-**`back/routers/screener.py`** — single endpoint:
+**`back/routers/screener.py`** — single endpoint, universe-parameterised:
 
 ```python
-@router.get("/sp500")
-def sp500_screener(client = Depends(get_client)):
+UNIVERSES = {"sp500", "nasdaq100", "combined"}
+
+@router.get("/{universe}")
+def screener(universe: str, client = Depends(get_client)):
     """
-    1. Load S&P 500 list from sp500.json (cached in-memory)
-    2. Call get_snapshot_all('stocks') → returns ALL US stocks current state (1 API call)
-    3. Filter snapshots to S&P 500 set
-    4. Join with metadata_cache (refresh stale rows)
-    5. Return list[ScreenerRow]
+    1. Validate universe ∈ {sp500, nasdaq100, combined}. 404 otherwise.
+    2. Load ticker list for the selected universe:
+       - sp500       → sp500.json
+       - nasdaq100   → nasdaq100.json
+       - combined    → dedup union of both, keyed by ticker
+    3. Call get_snapshot_all('stocks') → all US stocks (1 API call, cached 10s)
+    4. Filter snapshots to the universe set
+    5. Join with metadata_cache (refresh stale rows)
+    6. Return list[ScreenerRow]
     """
 ```
+
+The `snapshot_all` response is memoised in-process for 10 seconds so back-to-back requests across universes share the same snapshot fetch.
 
 Response shape (Pydantic-validated):
 
@@ -165,17 +178,21 @@ class ScreenerRow(BaseModel):
 ### Frontend layout
 
 ```
-┌──────────────────────────────────────────────┐
-│ etoro · Screener                  Phase 2A   │   header
-├──────────────────────────────────────────────┤
-│ 🔍 Search ticker or name…        [Refresh]  │   SearchBox + manual refresh
-├──────────────────────────────────────────────┤
-│ Ticker│Name      │Sector│Price │Chg%│Vol│   │   ScreenerTable (sticky header)
-├──────┼──────────┼──────┼──────┼────┼───┤   │
-│ NVDA │NVIDIA    │Tech  │215.33│+1.4│169M│   │   ~500 rows, no virtualization
-│ ...                                          │
-└──────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────┐
+│ etoro · Screener                        Phase 2A    │   header
+├────────────────────────────────────────────────────┤
+│ [ S&P 500 ] [ NASDAQ 100 ] [ Combined ]   503 stocks│   UniverseSelector + count
+├────────────────────────────────────────────────────┤
+│ 🔍 Search ticker or name…              [Refresh]   │   SearchBox + manual refresh
+├────────────────────────────────────────────────────┤
+│ Ticker│Name      │Sector│Price │Chg%│Vol│MCap│ P/E  │   ScreenerTable (sticky header)
+├──────┼──────────┼──────┼──────┼────┼───┼────┼─────┤
+│ NVDA │NVIDIA    │Tech  │215.33│+1.4│169M│5.2T│33.0 │   sortable rows
+│ ...                                                 │
+└────────────────────────────────────────────────────┘
 ```
+
+`UniverseSelector` is a 3-button segmented control. Switching universes is instant if data is already cached for that universe; otherwise React Query fires a new fetch. Selection persists in `localStorage` so the user's choice survives page reloads. Default on first visit: `S&P 500`.
 
 **Colour palette** (dark theme, TradingView-inspired):
 
@@ -218,10 +235,18 @@ export interface ScreenerRow {
 **First load:**
 
 1. User opens `localhost:5173`.
-2. `useScreenerData()` fires `GET http://localhost:8765/screener/sp500`.
-3. Backend reads `sp500.json` (memoised in-process), calls `snapshot_all('stocks')` once, filters to the S&P 500 set, joins with metadata cache, returns ~500 rows.
-4. Frontend renders the table.
-5. Search filters in-memory (no roundtrip). Column-header clicks sort in-memory.
+2. `UniverseSelector` reads `localStorage.universe` (default `sp500`).
+3. `useScreenerData(universe)` fires `GET http://localhost:8765/screener/{universe}`.
+4. Backend reads the universe's JSON list (memoised in-process), calls `snapshot_all('stocks')` once (cached 10s), filters to the universe set, joins with metadata cache, returns rows.
+5. Frontend renders the table. Header shows count: `503 stocks` (or `100 stocks` / `≈520 stocks` for combined).
+6. Search filters in-memory (no roundtrip). Column-header clicks sort in-memory.
+
+**Switching universe:**
+
+1. User clicks `NASDAQ 100`.
+2. `localStorage.universe = 'nasdaq100'`.
+3. React Query key changes → either serves cached data (if recently fetched) or fires `GET /screener/nasdaq100`.
+4. Snapshot is reused server-side via the 10-second snapshot memo cache — no extra Massive API call.
 
 **Refresh behaviour:**
 
@@ -248,9 +273,13 @@ export interface ScreenerRow {
 `back/tests/test_screener.py`:
 
 - `test_sp500_endpoint_returns_rows` — fixture `sp500.json` with 3 tickers + mock SDK → endpoint returns 3 `ScreenerRow` dicts matching schema.
+- `test_nasdaq100_endpoint_returns_rows` — same shape, separate fixture file.
+- `test_combined_universe_dedups_overlap` — sp500 has [AAPL, MSFT, JPM], nasdaq100 has [AAPL, MSFT, TSLA] → combined returns 4 unique tickers, no AAPL/MSFT duplicates.
+- `test_unknown_universe_returns_404` — `GET /screener/foo` → 404.
 - `test_metadata_cache_within_ttl_no_extra_calls` — second request inside 24h → 0 extra `get_ticker_details` calls.
 - `test_metadata_cache_stale_triggers_refresh` — backdate `updated_at` to >24h ago → next request refreshes those rows.
-- `test_missing_snapshot_returns_nulls` — ticker exists in `sp500.json` but absent from `snapshot_all` → row has `price=None`, no exception.
+- `test_snapshot_memo_cache_shared_across_universes` — request sp500 then immediately nasdaq100 → `snapshot_all` called exactly once.
+- `test_missing_snapshot_returns_nulls` — ticker exists in universe JSON but absent from `snapshot_all` → row has `price=None`, no exception.
 - `test_response_validates_against_pydantic_schema` — full response parses cleanly via `ScreenerRow.model_validate`.
 
 Coverage target: `back/routers/screener.py` + `back/data/metadata_cache.py` ≥ 80%.
@@ -262,8 +291,10 @@ Coverage target: `back/routers/screener.py` + `back/data/metadata_cache.py` ≥ 
 - `ScreenerTable.test.tsx` — render 3 mock rows → all 8 columns × 3 rows in DOM.
 - `ScreenerTable.test.tsx` — click "Price" header → rows sort ascending; click again → descending.
 - `SearchBox.test.tsx` — type "NVDA" → `onFilter` callback fires after 200ms debounce with `"NVDA"`.
+- `UniverseSelector.test.tsx` — click `NASDAQ 100` button → `onSelect` callback fires with `"nasdaq100"`, `localStorage.universe` updated.
+- `UniverseSelector.test.tsx` — `localStorage.universe = "combined"` on mount → that button is visually active.
 - `formatters.test.tsx` — `formatMoney(5_210_000_000_000) === '$5.21T'`; negative percent gets `text-red` class.
-- `useScreenerData.test.tsx` — MSW intercepts `/screener/sp500`; verifies loading → success → error states.
+- `useScreenerData.test.tsx` — MSW intercepts `/screener/sp500` AND `/screener/nasdaq100`; verifies the right URL is hit per universe, loading → success → error states.
 
 Coverage target: `ScreenerTable.tsx` + `SearchBox.tsx` + `formatters.ts` ≥ 70%. `App.tsx` not measured (composition shell).
 
@@ -273,9 +304,11 @@ Coverage target: `ScreenerTable.tsx` + `SearchBox.tsx` + `formatters.ts` ≥ 70%
 
 1. Start `back/` dev server on 8765 + `front/` dev server on 5173 (via `package.json` script that uses `concurrently`).
 2. Visit `http://localhost:5173`.
-3. Assert: table has > 100 rows.
-4. Type "AAPL" in search → at most 5 rows visible.
-5. Click "Price" header → rows reorder.
+3. Assert: table loads with the default `S&P 500` universe selected and > 400 rows.
+4. Click `NASDAQ 100` → row count drops to ≤ 102 (NDX has ~100).
+5. Type "AAPL" in search → at most 3 rows visible (AAPL only).
+6. Click "Price" header → rows reorder.
+7. Reload page → `NASDAQ 100` still selected (localStorage persistence).
 
 One test, no parallelisation. Skipped in CI for now (manual run).
 
@@ -329,10 +362,15 @@ One test, no parallelisation. Skipped in CI for now (manual run).
 
 Sub-phase 2A is done when:
 
-1. `cd back && uvicorn main:app` running on :8765 serves `GET /screener/sp500` returning ≥ 400 valid `ScreenerRow` JSON entries.
-2. `cd front && npm run dev` on :5173 renders the table with the rows.
-3. Sorting by any column works; search filters rows live; manual refresh button updates data.
-4. All backend tests pass with coverage ≥ 80% on new files.
-5. All frontend Vitest tests pass with coverage ≥ 70% on new files.
-6. Playwright happy-path passes locally.
-7. README updated to mark Sub-phase 2A shipped.
+1. `cd back && uvicorn main:app` running on :8765 serves:
+   - `GET /screener/sp500` returning ≥ 400 valid `ScreenerRow` JSON entries
+   - `GET /screener/nasdaq100` returning ≥ 90 valid entries
+   - `GET /screener/combined` returning ≥ 500 unique entries (no ticker duplicates)
+   - `GET /screener/foo` returning 404
+2. `cd front && npm run dev` on :5173 renders the table with the rows for the selected universe.
+3. Clicking `S&P 500` / `NASDAQ 100` / `Combined` switches the view; selection persists across page reloads via `localStorage`.
+4. Sorting by any column works; search filters rows live; manual refresh button updates data.
+5. All backend tests pass with coverage ≥ 80% on new files.
+6. All frontend Vitest tests pass with coverage ≥ 70% on new files.
+7. Playwright happy-path passes locally.
+8. README updated to mark Sub-phase 2A shipped.
