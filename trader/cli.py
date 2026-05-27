@@ -91,18 +91,20 @@ def cmd_sweep(args):
 
     strat_cls = STRATEGY_REGISTRY.get(args.strategy)
     if not strat_cls:
-        sys.exit(f"unknown strategy: {args.strategy}")
+        print(f"unknown strategy: {args.strategy}", file=sys.stderr)
+        print("Available:", ", ".join(STRATEGY_REGISTRY), file=sys.stderr)
+        sys.exit(2)
 
     grid = {}
     for f in fields(strat_cls.params_dataclass):
         if f.name == "tickers":
             continue
         val = getattr(args, f.name.replace("-", "_"), None)
+        cast = int if f.type in (int, "int") else float
         if isinstance(val, str) and "," in val:
-            cast = int if f.type is int or f.type == "int" else float
             grid[f.name] = [cast(x) for x in val.split(",")]
         elif val is not None:
-            grid[f.name] = [val]
+            grid[f.name] = [cast(val) if isinstance(val, str) else val]
 
     keys = list(grid)
     out_dir = Path(args.out)
