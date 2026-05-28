@@ -1,0 +1,9 @@
+node_modules/
+dist/
+dist-tsconfig-node/
+*.tsbuildinfo
+coverage/
+playwright-report/
+test-results/
+.vite/
+*.local
