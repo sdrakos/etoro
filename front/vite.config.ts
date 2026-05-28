@@ -14,6 +14,11 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./src/__tests__/setup.ts"],
+    fakeTimers: {
+      toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date"],
+      shouldAdvanceTime: true,
+      advanceTimeDelta: 20,
+    },
     coverage: {
       reporter: ["text", "html"],
       include: ["src/**/*.{ts,tsx}"],
