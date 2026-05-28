@@ -9,7 +9,8 @@ Quantitative trading platform that integrates with the Massive.com (Polygon.io r
 | 0 | Massive REST API wrapper (FastAPI, 104 endpoints) | ✅ shipped |
 | **1** | **Strategy + backtest core (Python, backtrader)** | **✅ shipped** |
 | 1.5 | Additional strategies (momentum, mean reversion, news event) | planned |
-| 2 | Screener UI (filterable table) | planned |
+| 2A | Screener UI — foundation (S&P 500 + NASDAQ 100, 8 cols, sort, search) | ✅ shipped |
+| 2B-2E | Screener — extra tabs, filter bar, watchlist | planned |
 | 3 | Charts (candlestick + indicators) | planned |
 | 4 | Strategy UI (web form to run backtests) | planned |
 | 5 | Options chain + Greeks (Earnings IV crush strategy) | planned |
@@ -114,6 +115,33 @@ Each backtest writes one folder with:
 - `trades.csv` — one row per round-trip with side, ticker, size, price, reason
 - `equity_curve.png` — portfolio value over time
 - `drawdown.png` — underwater chart
+
+## Screener (Sub-phase 2A)
+
+React + Vite + TypeScript SPA at `front/`. Renders S&P 500, NASDAQ 100, or the deduplicated union, with 8 columns (ticker, name, sector, price, change %, volume, market cap, P/E). Sortable per column, debounced search, dark TradingView-style theme.
+
+- Design spec: `docs/superpowers/specs/2026-05-27-screener-2a-design.md`
+- Implementation plan: `docs/superpowers/plans/2026-05-27-screener-2a.md`
+- 31 frontend tests + 13 backend tests
+
+### Run locally
+
+```bash
+# One shell — both servers
+cd front
+npm install
+npm run dev:full
+# → frontend on :5173, backend on :8765
+```
+
+Visit `http://localhost:5173`.
+
+### Refresh universe lists
+
+```bash
+python back/scripts/build_universes.py
+# Regenerates back/data/sp500.json + nasdaq100.json from Wikipedia
+```
 
 ## License
 
