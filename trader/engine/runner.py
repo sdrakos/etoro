@@ -42,6 +42,7 @@ def run_backtest(
     commission: float = 0.00005,   # 0.5 bps
     slippage_perc: float = 0.0001, # 1 bp
     timespan: str = "day",
+    source: str = "yahoo",
 ) -> BacktestResult:
     cerebro = bt.Cerebro()
     cerebro.broker.setcash(capital)
@@ -49,7 +50,7 @@ def run_backtest(
     cerebro.broker.set_slippage_perc(perc=slippage_perc)
 
     for ticker in tickers:
-        df = load_bars(ticker, start, end, timespan=timespan)
+        df = load_bars(ticker, start, end, timespan=timespan, source=source)
         if df.empty:
             raise RuntimeError(f"No bars for {ticker} in [{start}, {end}]")
         cerebro.adddata(_bars_to_feed(df, ticker))
