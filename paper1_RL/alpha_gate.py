@@ -23,8 +23,8 @@ def evaluate(signal: np.ndarray, close: np.ndarray, hold: int = 21,
         ok = np.isfinite(s) & np.isfinite(f)
         if ok.sum() < 20: continue
         s_, f_ = s[ok], f[ok]
-        sd = s_.std()
-        if sd < 1e-12: continue
+        sd = s_.std(); fsd = f_.std()
+        if sd < 1e-12 or fsd < 1e-12: continue          # αποφυγη nan IC απο zero-variance
         ics.append(np.corrcoef((s_ - s_.mean()) / sd, f_)[0, 1])
         k = max(3, int(0.1 * len(s_))); o = np.argsort(s_)
         ls.append(f_[o[-k:]].mean() - f_[o[:k]].mean() - 2 * DELTA)

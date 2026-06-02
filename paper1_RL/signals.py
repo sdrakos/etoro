@@ -10,7 +10,7 @@ def zscore_xs(x: np.ndarray) -> np.ndarray:
     return (x - m) / s
 
 def momentum_12_1(close: np.ndarray, t: int) -> np.ndarray:
-    """12-1 momentum (skip last month)."""
+    """12-1 momentum (skip last month). Requires t >= 252."""
     return close[t - 21] / close[t - 252] - 1
 
 def sector_neutral(score: np.ndarray, sectors: np.ndarray) -> np.ndarray:
