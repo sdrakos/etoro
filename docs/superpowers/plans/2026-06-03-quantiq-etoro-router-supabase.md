@@ -60,12 +60,14 @@ Expected: installs supabase, cryptography, httpx with no error.
 
 - [ ] **Step 3: Initialize and start local Supabase**
 
+> **CLI note:** the standalone `supabase` CLI is NOT installed on this machine, but `npx` (Node.js) IS. Prefix every Supabase CLI command with `npx` — e.g. `npx supabase start`. (First run downloads the CLI.) Docker Desktop is installed and the daemon is running, so the local stack will come up.
+
 Run (from `etoro/`):
 ```bash
-supabase init
-supabase start
+npx supabase init
+npx supabase start
 ```
-Expected: `supabase start` prints `API URL: http://127.0.0.1:54321`, `DB URL`, `service_role key`, `anon key`. (Requires Docker running. If `supabase` CLI is missing, install it first: https://supabase.com/docs/guides/cli.)
+Expected: `npx supabase start` prints `API URL: http://127.0.0.1:54321`, `DB URL`, `service_role key`, `anon key`.
 
 - [ ] **Step 4: Generate a Fernet key**
 
@@ -94,7 +96,7 @@ QUANTIQ_ALLOW_REAL_EXECUTION=false
 
 - [ ] **Step 6: Create the migration file**
 
-Run (from `etoro/`): `supabase migration new etoro_credentials`
+Run (from `etoro/`): `npx supabase migration new etoro_credentials`
 This creates `supabase/migrations/<timestamp>_etoro_credentials.sql`. Put this SQL in it:
 
 ```sql
@@ -122,8 +124,8 @@ create policy "own creds - delete" on public.etoro_credentials
 
 - [ ] **Step 7: Apply the migration locally**
 
-Run (from `etoro/`): `supabase migration up`
-Expected: applies without error. Verify: `supabase migration list --local` shows the migration as applied.
+Run (from `etoro/`): `npx supabase migration up`
+Expected: applies without error. Verify: `npx supabase migration list --local` shows the migration as applied.
 
 - [ ] **Step 8: Commit**
 
@@ -1537,7 +1539,7 @@ Open `http://127.0.0.1:8765/docs` — confirm the `etoro:*` tag groups appear.
 
 - [ ] **Step 3: Live keyless-tenant smoke (uses back/.env demo keys via fallback)**
 
-With Supabase running (`supabase start`) and the API up, run:
+With Supabase running (`npx supabase start`) and the API up, run:
 ```bash
 curl -s -H "X-User-Id: 11111111-1111-1111-1111-111111111111" \
   "http://127.0.0.1:8765/etoro/market-data/search?fields=instrumentId,internalSymbolFull,displayname&internalSymbolFull=BTC"
