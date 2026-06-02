@@ -23,6 +23,8 @@ Phase status, layout, and end-user CLI examples live in `README.md` — don't du
 
 The single source of truth for `MASSIVE_KEY` is `back/.env`. `trader/config.py` reads it from there — **never duplicate the key** into a second `.env`. The repo's `.gitignore` excludes all `.env` files; `back/.env.example` is the committed template.
 
+The key is **lazy**: `config.py` loads `MASSIVE_KEY` at import without raising, and `config.get_massive_key()` raises `RuntimeError` only when something actually needs it (i.e. `source="massive"`). This lets the whole framework run keyless on the default Yahoo source. Don't reintroduce an import-time raise.
+
 ### Adding a new strategy
 
 1. Create `trader/strategies/<name>.py`
@@ -37,13 +39,24 @@ Don't manually register strategies anywhere. Don't import strategies in `__init_
 
 ### Data layer
 
-`trader/data/loader.py::load_bars` is **cache-aside**: it queries SQLite first (`~/.etoro/cache.db`), fetches only the missing range from the Massive SDK, upserts, and returns a DataFrame. The cache is keyed `(ticker, timestamp, timespan)` — each ticker stored independently; new tickers extend without disturbing existing ones.
+`trader/data/loader.py::load_bars` is **cache-aside**: it queries SQLite first (`~/.etoro/cache.db`), fetches only the missing range from the chosen source, upserts, and returns a DataFrame. The cache is keyed `(ticker, timestamp, timespan, source)` — each ticker **and source** stored independently; new tickers/sources extend without disturbing existing ones.
+
+**Two sources, Yahoo is the default.** `load_bars(ticker, start, end, timespan="day", source="yahoo")`. Each provider lives in `trader/data/sources/` and exposes the same `fetch_bars(ticker, start, end, timespan) -> list[dict]`:
+
+- **`yahoo.py`** — free, keyless, adjusted daily bars via `yfinance` (`auto_adjust=True`). `vwap` is always `None`; yfinance's `end` is exclusive so it fetches `end + 1 day`.
+- **`massive.py`** — Massive/Polygon REST SDK (`list_aggs`), needs `get_massive_key()`. This is the old `loader.py` fetch logic, extracted.
+
+`loader.py` is **source-agnostic** — it dispatches via `_SOURCES = {"yahoo": yahoo, "massive": massive}` and computes cache gaps **per source**. Adding a third source = drop one `sources/<name>.py` with a `fetch_bars` + register it in `_SOURCES`. An unknown `source` raises `ValueError`.
+
+**Source isolation matters.** Because `source` is in the cache PK, Yahoo and Massive bars for the same ticker never collide (adjusted prices differ slightly between providers). A backtest with no `--source` hits the Yahoo partition; it won't read previously-cached Massive data and will fresh-fetch from Yahoo. That's intentional — pass `--source massive` to reuse Massive data.
+
+**Cache migration is automatic.** `Cache.__init__` detects a pre-multi-source DB (no `source` column) and rebuilds the table once, tagging all existing rows `source='massive'` (everything cached before this feature came from Massive). The `SCHEMA` and `_MIGRATE_ADD_SOURCE` table definitions in `cache.py` must be kept in sync.
 
 **`load_bars` only supports `timespan="day"`**. Intraday raises `NotImplementedError` because gap math currently truncates to dates. Don't lift the guard without redoing the gap calculation in datetime precision.
 
 ### `back/` ↔ `trader/` boundary
 
-`trader/` does **not** HTTP-call `back/`. Both import the same `polygon` / `massive` Python SDK directly. `back/` is for external consumers (future web UI, n8n, etc.) — backtests don't need a server running.
+`trader/` does **not** HTTP-call `back/`. For the Massive source, both import the same `polygon` / `massive` Python SDK directly; for the Yahoo source `trader/` uses `yfinance`. `back/` is Massive-only and for external consumers (future web UI, n8n, etc.) — backtests don't need a server running.
 
 ### Sharpe/Sortino on zero-trade backtests
 
@@ -90,9 +103,12 @@ Tests are fully offline. Fixtures in `trader/tests/fixtures/*.csv` are UTC-ancho
 
 ```bash
 python -m trader strategies          # lists auto-registered strategies
-python -m trader cache-list          # what's in ~/.etoro/cache.db
-python -m trader fetch AMD --from 2024-01-01 --to today   # ≤2y of data on Basic tier
+python -m trader cache-list          # what's in ~/.etoro/cache.db (shows source per row)
+python -m trader fetch AMD --from 2024-01-01 --to today              # Yahoo (default, keyless)
+python -m trader fetch AMD --from 2024-01-01 --to today --source massive   # Massive (needs key, ≤2y Basic tier)
 ```
+
+`--source {yahoo,massive}` (default `yahoo`) is also accepted by `backtest` and `sweep`. `cache-clear` takes an optional `--source` (omit to clear all sources for the ticker).
 
 ### Linting / formatting
 
