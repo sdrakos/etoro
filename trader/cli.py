@@ -26,7 +26,7 @@ def cmd_fetch(args):
     start = _parse_date(args.from_)
     end = _parse_date(args.to)
     for t in tickers:
-        df = load_bars(t, start, end, timespan=args.timespan)
+        df = load_bars(t, start, end, timespan=args.timespan, source=args.source)
         print(f"{t}: {len(df)} bars  {df.index.min() if not df.empty else '—'} → {df.index.max() if not df.empty else '—'}")
 
 
@@ -39,13 +39,14 @@ def cmd_cache_list(args):
     import pandas as pd
     df["min_date"] = pd.to_datetime(df["min_ts"], unit="ms").dt.date
     df["max_date"] = pd.to_datetime(df["max_ts"], unit="ms").dt.date
-    print(df[["ticker", "min_date", "max_date", "bar_count"]].to_string(index=False))
+    print(df[["ticker", "source", "min_date", "max_date", "bar_count"]].to_string(index=False))
 
 
 def cmd_cache_clear(args):
     cache = Cache(CACHE_DB)
-    n = cache.clear(args.ticker.upper(), timespan=args.timespan)
-    print(f"deleted {n} rows for {args.ticker.upper()}")
+    n = cache.clear(args.ticker.upper(), timespan=args.timespan, source=args.source)
+    msg = f"deleted {n} rows for {args.ticker.upper()}"
+    print(msg if args.source is None else f"{msg} (source={args.source})")
 
 
 def cmd_strategies(args):
@@ -79,6 +80,7 @@ def cmd_backtest(args):
         start=_parse_date(args.from_),
         end=_parse_date(args.to),
         capital=args.capital,
+        source=args.source,
     )
     out = write_report(result, args.out)
     print(f"\nResults written to {out}")
@@ -120,6 +122,7 @@ def cmd_sweep(args):
             tickers=list(params["tickers"]),
             start=_parse_date(args.from_), end=_parse_date(args.to),
             capital=args.capital,
+            source=args.source,
         )
         write_report(result, out_dir / slug)
         summary.append({"params": params, "metrics": result.metrics})
@@ -155,11 +158,12 @@ def build_parser():
     p = argparse.ArgumentParser(prog="trader")
     sp = p.add_subparsers(dest="cmd", required=True)
 
-    pf = sp.add_parser("fetch", help="Preload cache with bars from Massive")
+    pf = sp.add_parser("fetch", help="Preload cache with bars from Yahoo/Massive")
     pf.add_argument("tickers", help="comma-separated tickers, e.g. AMD,NVDA")
     pf.add_argument("--from", dest="from_", required=True)
     pf.add_argument("--to", default="today")
     pf.add_argument("--timespan", default="day")
+    pf.add_argument("--source", choices=["yahoo", "massive"], default="yahoo")
     pf.set_defaults(func=cmd_fetch)
 
     pl = sp.add_parser("cache-list", help="Show what's in the cache")
@@ -169,6 +173,7 @@ def build_parser():
     pc = sp.add_parser("cache-clear", help="Delete bars for one ticker")
     pc.add_argument("ticker")
     pc.add_argument("--timespan", default="day")
+    pc.add_argument("--source", choices=["yahoo", "massive"], default=None)
     pc.set_defaults(func=cmd_cache_clear)
 
     ps = sp.add_parser("strategies", help="List registered strategies")
@@ -181,6 +186,7 @@ def build_parser():
     pb.add_argument("--to", required=True)
     pb.add_argument("--capital", type=float, default=100_000)
     pb.add_argument("--out", required=True)
+    pb.add_argument("--source", choices=["yahoo", "massive"], default="yahoo")
     _attach_strategy_flags(pb)
     pb.set_defaults(func=cmd_backtest)
 
@@ -191,6 +197,7 @@ def build_parser():
     psw.add_argument("--to", required=True)
     psw.add_argument("--capital", type=float, default=100_000)
     psw.add_argument("--out", required=True)
+    psw.add_argument("--source", choices=["yahoo", "massive"], default="yahoo")
     _attach_strategy_flags(psw, allow_csv=True)
     psw.set_defaults(func=cmd_sweep)
 
