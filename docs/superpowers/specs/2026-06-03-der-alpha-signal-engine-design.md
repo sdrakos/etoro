@@ -26,7 +26,14 @@ alpha πρέπει να έρθει από νέα **ορθογώνια πληρο
 - **Δεν** αλλάζουμε το `trader/` package ούτε το `back/`. Επαναχρησιμοποιούμε μόνο τον
   δοκιμασμένο bar-fetch (`trader/data/sources/yahoo.py`).
 - **Δεν** αλλάζουμε τον υπάρχοντα DER κώδικα/θεωρία· τον εφαρμόζουμε ως risk layer.
-- **Δεν** χτίζουμε production trading system· research-grade reproducible scripts.
+- **Δεν** χτίζουμε production trading system **τώρα** (execution, order management,
+  slippage modeling, position sizing με risk limits, live feed, eToro integration,
+  monitoring). Λόγος = sequencing, όχι «ποτέ»: (i) δεν productionάρεις σήμα πριν περάσει
+  το Fundamental-Law gate — αν δεν περάσει, δεν υπάρχει τι να deployάρεις· (ii) τα δωρεάν
+  Yahoo data δεν είναι production-grade (survivorship, current-snapshot fundamentals, καμία
+  PIT πηγή)· (iii) η production infra είναι ορθογώνια στο ερώτημα «έχει alpha;» και θα
+  θόλωνε την απόδειξη. Αν τα σήματα περάσουν το gate σε stressed walk-forward → **ξεχωριστή
+  production φάση με δικό της spec**. Εδώ: research-grade reproducible scripts.
 
 ## Αρχιτεκτονική — hybrid
 
