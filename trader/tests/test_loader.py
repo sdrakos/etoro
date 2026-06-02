@@ -1,6 +1,5 @@
 from datetime import date
-from unittest.mock import MagicMock, patch
-import pandas as pd
+from unittest.mock import patch
 import pytest
 
 from trader.data.cache import Cache
@@ -21,13 +20,12 @@ def test_cache_hit_skips_api(temp_db, monkeypatch):
         {"ticker": "AAPL", "timestamp": _ms(date(2024, 1, 3)),
          "open": 101, "high": 103, "low": 100, "close": 102,
          "volume": 1_200_000, "vwap": 101.8},
-    ])
+    ], source="massive")
     monkeypatch.setattr("trader.data.loader.CACHE_DB", temp_db)
-    fake_client = MagicMock()
-    with patch("trader.data.loader._client", return_value=fake_client):
-        df = load_bars("AAPL", date(2024, 1, 2), date(2024, 1, 3))
+    with patch("trader.data.loader.massive.fetch_bars") as fetch:
+        df = load_bars("AAPL", date(2024, 1, 2), date(2024, 1, 3), source="massive")
     assert len(df) == 2
-    assert fake_client.list_aggs.call_count == 0
+    assert fetch.call_count == 0
 
 
 def test_partial_gap_fetches_delta_only(temp_db, monkeypatch):
@@ -38,37 +36,33 @@ def test_partial_gap_fetches_delta_only(temp_db, monkeypatch):
          "open": 1, "high": 1, "low": 1, "close": 1, "volume": 1, "vwap": 1},
         {"ticker": "AAPL", "timestamp": _ms(date(2024, 1, 31)),
          "open": 2, "high": 2, "low": 2, "close": 2, "volume": 1, "vwap": 2},
-    ])
+    ], source="massive")
     monkeypatch.setattr("trader.data.loader.CACHE_DB", temp_db)
 
-    fake_client = MagicMock()
-    fake_client.list_aggs.return_value = iter([])  # no new bars returned
-    with patch("trader.data.loader._client", return_value=fake_client):
-        load_bars("AAPL", date(2023, 1, 1), date(2024, 2, 28))
+    with patch("trader.data.loader.massive.fetch_bars", return_value=[]) as fetch:
+        load_bars("AAPL", date(2023, 1, 1), date(2024, 2, 28), source="massive")
 
-    # Two API calls: left gap (2023-01-01..2024-01-01) + right gap (2024-02-01..2024-02-28)
-    assert fake_client.list_aggs.call_count == 2
+    # Two source calls: left gap (2023-01-01..2024-01-01) + right gap (2024-02-01..2024-02-28)
+    assert fetch.call_count == 2
 
-    # Verify the date boundaries passed to the SDK — gap math is the
+    # Verify the date boundaries passed to the source — gap math is the
     # easiest thing to regress and the most consequential.
-    call_args = [call.args for call in fake_client.list_aggs.call_args_list]
-    # Each call: (ticker, 1, "day", from_iso, to_iso, limit=...)
-    iso_ranges = [(a[3], a[4]) for a in call_args]
-    # Left gap: starts 2023-01-01, ends before Jan 2 2024
-    # Right gap: starts after Jan 31 2024, ends 2024-02-28
+    # Each call: fetch_bars(ticker, start_date, end_date, timespan)
+    call_args = [call.args for call in fetch.call_args_list]
+    iso_ranges = [(a[1].isoformat(), a[2].isoformat()) for a in call_args]
     iso_ranges.sort()
+    # Left gap: starts 2023-01-01, ends at or before cmin date
     assert iso_ranges[0][0] == "2023-01-01"
-    assert iso_ranges[0][1] <= "2024-01-02"   # ends at or before cmin date
-    assert iso_ranges[1][0] >= "2024-01-31"   # starts at or after cmax date
+    assert iso_ranges[0][1] <= "2024-01-02"
+    # Right gap: starts at or after cmax date, ends 2024-02-28
+    assert iso_ranges[1][0] >= "2024-01-31"
     assert iso_ranges[1][1] == "2024-02-28"
 
 
 def test_unknown_ticker_returns_empty(temp_db, monkeypatch):
     monkeypatch.setattr("trader.data.loader.CACHE_DB", temp_db)
-    fake_client = MagicMock()
-    fake_client.list_aggs.return_value = iter([])
-    with patch("trader.data.loader._client", return_value=fake_client):
-        df = load_bars("ZZZZ", date(2024, 1, 1), date(2024, 1, 5))
+    with patch("trader.data.loader.massive.fetch_bars", return_value=[]):
+        df = load_bars("ZZZZ", date(2024, 1, 1), date(2024, 1, 5), source="massive")
     assert df.empty
 
 
