@@ -4,6 +4,14 @@ Live fetch -> cache σε npz (μια φορα)· οι transforms ειναι pure
 from __future__ import annotations
 import numpy as np
 
+def announcement_index(all_ts, day_ms: int):
+    """Index του πλησιεστερου trading day <= day_ms. None αν το event ειναι
+    ΕΚΤΟΣ του [first, last] window (π.χ. μελλοντικα earnings) — αλλιως μελλοντικες
+    ανακοινωσεις θα κλειδωναν λαθος στον τελευταιο index. all_ts: sorted ints."""
+    if len(all_ts) == 0 or day_ms < all_ts[0] or day_ms > all_ts[-1]:
+        return None
+    return int(np.searchsorted(all_ts, day_ms, side="right") - 1)
+
 def surprise_matrix(dates, announcements: dict[int, list[tuple[int, float]]],
                     n: int, window: int = 60) -> np.ndarray:
     """(T,N) matrix· για καθε (ticker j) και drift window [ann+1, ann+window]
@@ -59,9 +67,8 @@ def _fetch_all() -> dict:
                 if surp is None or np.isnan(surp): continue
                 day_ms = int(dt.datetime(ts_pd.year, ts_pd.month, ts_pd.day,
                              tzinfo=dt.timezone.utc).timestamp() * 1000)
-                # nearest trading day <= announcement
-                cands = [i for i, ts in enumerate(all_ts) if ts <= day_ms]
-                if cands: earnings[j].append((cands[-1], float(surp)))
+                idx = announcement_index(all_ts, day_ms)   # None αν εκτος window (π.χ. future)
+                if idx is not None: earnings[j].append((idx, float(surp)))
         except Exception as e:
             warnings.warn(f"earnings {tk}: {e}")
     # 3) sector map

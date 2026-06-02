@@ -13,6 +13,14 @@ def test_window_constants():
 import numpy as np
 import paper1_RL.yahoo_research_data as Y
 
+def test_announcement_index_maps_and_filters_out_of_window():
+    all_ts = [100, 200, 300, 400]                        # sorted trading-day timestamps
+    assert Y.announcement_index(all_ts, 250) == 1        # nearest <= 250 is index 1 (200)
+    assert Y.announcement_index(all_ts, 300) == 2        # exact match
+    assert Y.announcement_index(all_ts, 450) is None     # future (beyond last) -> NOT clamped to 3
+    assert Y.announcement_index(all_ts, 50) is None      # before first -> dropped
+    assert Y.announcement_index([], 100) is None
+
 def test_surprise_matrix_t_plus_1_and_window():
     dates = np.arange(10)                                # 10 trading-day indices
     # ticker 0 ανακοινωνει στο index 2 με surprise +5%· ticker 1 ποτε
