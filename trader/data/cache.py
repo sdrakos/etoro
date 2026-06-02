@@ -23,6 +23,7 @@ CREATE INDEX IF NOT EXISTS idx_bars_ticker_range
     ON bars(ticker, timespan, source, timestamp);
 """
 
+# NOTE: The CREATE TABLE bars (...) below must be kept in sync with the SCHEMA string above.
 _MIGRATE_ADD_SOURCE = """
 ALTER TABLE bars RENAME TO bars_old;
 CREATE TABLE bars (
