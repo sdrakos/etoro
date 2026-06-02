@@ -58,3 +58,7 @@ build/
 
 # Skill zip artifacts
 *.skill
+
+# paper1_RL research data cache
+paper1_RL/universe_cache.npz
+paper1_RL/universe_cache.npz.json
