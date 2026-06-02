@@ -27,3 +27,22 @@ def test_surprise_matrix_t_plus_1_and_window():
     assert np.isnan(M[6, 0])
     # ticker χωρις earnings = ολο nan
     assert np.isnan(M[:, 1]).all()
+
+# Task 4: cache-aside load_universe
+def test_load_universe_caches(tmp_path, monkeypatch):
+    calls = {"n": 0}
+    def fake_fetch():
+        calls["n"] += 1
+        T, N = 5, 3
+        return dict(close=np.ones((T, N)), vol=np.ones((T, N)),
+                    dates=np.arange(T), tickers=["A","B","C"],
+                    earnings={0: [], 1: [], 2: []},
+                    sector={"A":"Tech","B":"Tech","C":"Energy"},
+                    vix=np.ones(T))
+    monkeypatch.setattr(Y, "_fetch_all", fake_fetch)
+    cache = tmp_path / "u.npz"
+    d1 = Y.load_universe(cache_path=str(cache))           # miss -> fetch
+    d2 = Y.load_universe(cache_path=str(cache))           # hit  -> no fetch
+    assert calls["n"] == 1
+    assert d2["close"].shape == (5, 3)
+    assert list(d2["tickers"]) == ["A","B","C"]
