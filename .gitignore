@@ -69,3 +69,6 @@ paper1_RL/close_mat.npy
 paper1_RL/vol_mat.npy
 paper1_RL/ndx_idx.npy
 paper1_RL/backtest_results.csv
+
+# Local conversation log (Stop hook)
+claude.db
