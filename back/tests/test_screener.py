@@ -36,6 +36,8 @@ def client(tmp_path, monkeypatch):
          "assetClass": "Stocks", "exchangeName": "Nasdaq", "currentRate": 213.6},
         {"instrumentId": 1002, "symbol": "MSFT", "displayName": "Microsoft",
          "assetClass": "Stocks", "exchangeName": "Nasdaq", "currentRate": 400.0},
+        {"instrumentId": 9000, "symbol": "ABT", "displayName": "Arcblock",
+         "assetClass": "Crypto", "exchangeName": "Digital Currency", "currentRate": 0.21},
     ]
     rates = {1001: {"bid": 213.5, "ask": 213.7, "lastExecution": 213.6}}  # no MSFT
     closing = {1001: {"officialClosingPrice": 210.0, "isMarketOpen": True},
@@ -47,6 +49,7 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr(screener, "_load_universe", lambda u: [
         {"ticker": "AAPL", "name": "Apple Inc.", "sector": "Tech"},
         {"ticker": "MSFT", "name": "Microsoft Corp.", "sector": "Tech"},
+        {"ticker": "ABT", "name": "Abbott Laboratories", "sector": "Health"},
         {"ticker": "NOPE", "name": "Unmapped Co.", "sector": "X"},
     ])
     from main import app
@@ -57,7 +60,7 @@ def test_refresh_catalog_populates(client):
     tc, _ = client
     r = tc.post("/screener/refresh-etoro-catalog")
     assert r.status_code == 200
-    assert r.json()["instruments"] == 2
+    assert r.json()["instruments"] == 3
 
 
 def test_screener_live_prices_and_computed_change(client):
@@ -92,3 +95,14 @@ def test_refresh_uses_no_fields_param(client):
     assert discover_calls
     for _, _, params in discover_calls:
         assert "fields" not in params
+
+
+def test_crypto_symbol_collision_treated_as_unmapped(client):
+    tc, _ = client
+    tc.post("/screener/refresh-etoro-catalog")
+    rows = {x["ticker"]: x for x in tc.get("/screener/sp500").json()}
+    abt = rows["ABT"]
+    # ABT only exists as a Crypto instrument on eToro -> must NOT show crypto data
+    assert abt["price"] is None
+    assert abt["instrument_id"] is None
+    assert abt["exchange"] is None

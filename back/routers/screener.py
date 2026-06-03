@@ -35,6 +35,7 @@ METADATA_DB.parent.mkdir(parents=True, exist_ok=True)
 _snapshot_memo: dict[str, tuple[float, dict]] = {}
 SNAPSHOT_TTL_S = 10
 RATES_BATCH = 100
+_STOCK_CLASSES = {"Stocks", "ETF", "Indices", None}
 
 
 class ScreenerRow(BaseModel):
@@ -146,7 +147,10 @@ def _build_rows(universe: str) -> list[ScreenerRow]:
     catalog = EtoroCatalog(CATALOG_DB)
     mapped = catalog.get_many([t["ticker"] for t in tickers])
 
-    ids = [mapped[t["ticker"]]["instrument_id"] for t in tickers if t["ticker"] in mapped]
+    def _is_stock(c):
+        return c is not None and c.get("asset_class") in _STOCK_CLASSES
+    ids = [mapped[t["ticker"]]["instrument_id"] for t in tickers
+           if _is_stock(mapped.get(t["ticker"]))]
     client = get_server_client()
     rates = _fetch_rates(client, ids) if ids else {}
     closing = _fetch_closing(client) if ids else {}
@@ -156,6 +160,8 @@ def _build_rows(universe: str) -> list[ScreenerRow]:
     for t in tickers:
         ticker = t["ticker"]
         cat = mapped.get(ticker)
+        if cat is not None and cat.get("asset_class") not in _STOCK_CLASSES:
+            cat = None
         iid = cat["instrument_id"] if cat else None
         rate = rates.get(iid) if iid is not None else None
         clo = closing.get(iid) if iid is not None else None
