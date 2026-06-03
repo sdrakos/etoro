@@ -13,6 +13,7 @@ from routers import (
     screener,
     stocks,
 )
+from routers import etoro
 
 app = FastAPI(
     title="Massive Market Data API",
@@ -37,6 +38,7 @@ app.include_router(alternative.router)
 app.include_router(filings.router)
 app.include_router(reference.router)
 app.include_router(screener.router)
+app.include_router(etoro.router)
 
 
 @app.get("/", tags=["health"])
@@ -45,7 +47,7 @@ def root():
         "service": "massive-api",
         "docs": "/docs",
         "openapi": "/openapi.json",
-        "categories": ["stocks", "options", "indices", "crypto", "forex", "economy", "news", "filings", "reference"],
+        "categories": ["stocks", "options", "indices", "crypto", "forex", "economy", "news", "filings", "reference", "etoro"],
     }
 
 
