@@ -102,3 +102,15 @@ def test_query_name_sort(tmp_path):
                 {"symbol": "A", "instrument_id": 2, "asset_class": "Stocks", "display_name": "Alpha"}])
     rows, _ = cat.query("Stocks", sort="name")
     assert [r["display_name"] for r in rows] == ["Alpha", "Zeta"]
+
+
+def test_all_for_category_returns_everything(tmp_path):
+    from data_cache.etoro_catalog import EtoroCatalog
+    cat = EtoroCatalog(tmp_path / "c.db")
+    cat.upsert([{"symbol": f"S{i}", "instrument_id": i, "asset_class": "Stocks",
+                 "display_name": f"Stock {i}"} for i in range(1, 301)])  # 300 > 200 clamp
+    rows = cat.all_for_category("Stocks")
+    assert len(rows) == 300
+    # text filter still applies
+    cat.upsert([{"symbol": "AAPL", "instrument_id": 9999, "asset_class": "Stocks", "display_name": "Apple"}])
+    assert len(cat.all_for_category("Stocks", q="apple")) == 1

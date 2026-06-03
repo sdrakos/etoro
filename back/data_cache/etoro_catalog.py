@@ -103,3 +103,18 @@ class EtoroCatalog:
                 f"SELECT * FROM instruments WHERE {where} ORDER BY {order} "
                 f"LIMIT ? OFFSET ?", params + [page_size, (page - 1) * page_size]).fetchall()
         return [dict(r) for r in rows], total
+
+    def all_for_category(self, asset_class: str, q: Optional[str] = None) -> list[dict]:
+        """All rows for one asset_class (no pagination), optional text filter on
+        symbol/display_name. For in-memory sort by computed live fields."""
+        where = "asset_class = ?"
+        params: list = [asset_class]
+        if q:
+            where += " AND (UPPER(symbol) LIKE ? OR UPPER(display_name) LIKE ?)"
+            like = f"%{q.upper()}%"
+            params += [like, like]
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                f"SELECT * FROM instruments WHERE {where} ORDER BY display_name", params).fetchall()
+        return [dict(r) for r in rows]
