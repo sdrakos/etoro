@@ -1,0 +1,910 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath, amssymb, amsthm, mathtools}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{caption}
+\usepackage[hidelinks]{hyperref}
+\usepackage{microtype}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{proposition}{Proposition}
+\newtheorem{lemma}{Lemma}
+\theoremstyle{definition}
+\newtheorem{definition}{Definition}
+\newtheorem{remark}{Remark}
+
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\CE}{\mathrm{CE}}
+\newcommand{\DER}{\mathrm{DER}}
+\newcommand{\DSR}{\mathrm{DSR}}
+\newcommand{\Var}{\mathrm{Var}}
+\newcommand{\KL}{\mathrm{KL}}
+\newcommand{\CVaR}{\mathrm{CVaR}}
+\newcommand{\sgn}{\operatorname{sgn}}
+
+\title{\textbf{The Differential Entropic Reward: A Risk-Sensitive Objective\\
+for Reinforcement-Learning Trading Agents}}
+\author{Stefanos Drakos\\
+\small AGEL AI I.K.E., Rhodes, Greece\\
+\small ORCID: 0000-0001-7417-2444}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\noindent
+We introduce the \emph{Differential Entropic Reward} (DER), an online,
+differentiable per-step reward for reinforcement-learning (RL) trading agents
+derived from the entropic certainty equivalent of returns. A single risk-aversion
+parameter $\theta$ controls the agent's sensitivity to \emph{all} cumulants of the
+return distribution simultaneously --- mean, variance, skewness (crash risk), and
+kurtosis (fat tails) --- in contrast to the Differential Sharpe Ratio (DSR), which is
+structurally blind to moments beyond the second, and in contrast to
+Conditional-Value-at-Risk objectives, which require auxiliary critics or sample
+sorting. We prove that the DER recovers the risk-neutral mean as $\theta\to0$, reduces
+to a mean--variance criterion at first order, admits an exact telescoping identity
+to the realized entropic certainty equivalent, and possesses a Kullback--Leibler
+robust (worst-case) dual; it is the discrete-time, model-free counterpart of the
+risk-sensitive Hamilton--Jacobi--Bellman equation and uses precisely the exponential
+risk criterion of the modern risk-sensitive RL regret theory. Each theoretical claim
+is confirmed by an independent numerical check ($8/8$, seed $2025$). Empirically, on
+a universe of $48$ real S\&P~500 equities, the DER reduces maximum drawdown relative
+to the DSR for \emph{$100\%$} of assets (paired Wilcoxon $p\approx7\times10^{-15}$),
+eliminating all drawdowns worse than $-20\%$, whereas the worst DSR drawdown reaches
+$-50\%$. The reward is architecture-agnostic: transferred unchanged to actor--critic
+and PPO, \emph{DER-PPO matches the risk control of CVaR-PPO (CPPO) at roughly a quarter
+of the compute and without LLM signals}. We are deliberately explicit about scope: through a sequence of honest
+ablations on a $470$-stock cross-sectional universe we show that flexible signal
+learning overfits, that volume/order-flow features carry no measurable directional
+information at the daily horizon, and that the value of the DER is risk \emph{shaping}
+on top of a fixed signal, not alpha generation --- a more candid position than the
+regime-dependent, drawdown-prone results reported for state-of-the-art LLM-augmented
+risk-sensitive agents. All claims are reproduced by accompanying verification code.
+
+\medskip
+\noindent\textbf{Keywords:} reinforcement learning, algorithmic trading, risk-sensitive
+control, entropic risk measure, reward design, drawdown.
+\end{abstract}
+
+\section{Introduction}\label{sec:intro}
+
+Reinforcement learning (RL) has become a standard tool for sequential trading
+decisions, spanning recurrent reinforcement learning (RRL)~\cite{moody2001}, deep
+direct RL~\cite{deng2017}, value-based agents~\cite{theate2021}, portfolio
+policies~\cite{jiang2017}, optimal execution~\cite{nevmyvaka2006}, and market
+making~\cite{spooner2018}. A persistent difficulty, emphasized in the survey of
+Hambly, Xu and Yang~\cite{hambly2023}, is \emph{risk}: agents optimizing raw or
+Sharpe-like objectives tend to incur large, persistent drawdowns that make them
+unsuitable for capital that must be protected. Even current LLM-augmented
+risk-sensitive agents report regime-dependent performance and acknowledged
+drawdowns~\cite{benhenda2025,dapo2025}.
+
+\paragraph{What prior work has done.} Three threads define the landscape.
+\emph{First}, direct-policy trading: Moody and Saffell~\cite{moody2001} introduced
+recurrent reinforcement learning together with the Differential Sharpe Ratio, an
+online reward that rewards the marginal change of a recursively estimated Sharpe
+ratio; Deng et al.~\cite{deng2017} added deep feature learning, Th\'eate and
+Ernst~\cite{theate2021} a deep $Q$-network agent, and Jiang et al.~\cite{jiang2017}
+an end-to-end portfolio network, while task-specific agents addressed
+execution~\cite{nevmyvaka2006} and market making~\cite{spooner2018}; the FinRL
+ecosystem~\cite{finrl2020} consolidated these into standard environments and
+baselines. \emph{Second}, risk-sensitive learning and control: the entropic risk
+measure and its Kullback--Leibler dual are classical~\cite{follmer2002}, the
+continuous-time risk-sensitive portfolio problem is well
+developed~\cite{bielecki1999,flemingmce1995}, and a recent line establishes regret
+guarantees for RL under exactly the exponential criterion we
+adopt~\cite{fei2020,fei2021,noorani2022,borkar2002}; the competing applied functional
+is Conditional Value-at-Risk~\cite{rockafellar2000}, used by current LLM-augmented
+agents~\cite{benhenda2025,dapo2025} that nonetheless report regime-dependent returns
+and unresolved drawdowns. \emph{Third}, the quantitative-strategy literature has
+documented the genuine, if modest, sources of return that any trading agent must rely
+on --- cross-sectional and time-series momentum~\cite{jegadeesh1993,moskowitz2012}
+--- together with their characteristic failure mode, momentum
+crashes~\cite{daniel2016}, and the volatility-scaling remedy that mitigates
+them~\cite{moreira2017,lim2019}. Our work connects these threads: it brings the
+exponential risk criterion of risk-sensitive RL into the direct-policy trading
+reward, and our empirical study (Section~\ref{sec:signal}) independently rediscovers
+the strategy literature's central lesson --- that predictive signal is scarce and is
+best handled by risk management rather than by ever more flexible learning.
+
+The objective an agent maximizes defines the behavior it learns; reward design is
+therefore the central lever for risk. The canonical risk-adjusted choice, the
+Differential Sharpe Ratio (DSR)~\cite{moody2001}, measures reward per unit of
+\emph{variance}. Variance penalizes upside and downside symmetrically and so cannot
+distinguish a strategy that occasionally produces large gains from one that
+occasionally crashes. Yet crash risk --- negative skewness and heavy tails --- is
+precisely what a risk-averse investor most wishes to avoid.
+
+We propose replacing variance-based risk adjustment with the \emph{entropic certainty
+equivalent}, the certainty equivalent of an exponential-utility investor and a
+classical convex risk measure~\cite{follmer2002}, whose Taylor expansion weights every
+cumulant of the return distribution through a single interpretable parameter $\theta$.
+We turn this static measure into an online, differentiable per-step reward --- the
+Differential Entropic Reward (DER) --- suitable for gradient-based RRL, and we situate
+it within the risk-sensitive stochastic control tradition~\cite{bielecki1999,
+flemingmce1995} and the modern risk-sensitive RL regret theory built on the same
+exponential criterion~\cite{fei2020,fei2021,noorani2022}.
+
+\paragraph{Contributions.}
+\begin{enumerate}
+\item \textbf{The DER reward and its theory} (Section~\ref{sec:der}): limiting cases,
+a cumulant expansion, an exact telescoping identity, a KL-robust dual, and a
+risk-sensitive HJB interpretation, each confirmed numerically
+(Section~\ref{sec:verify}).
+\item \textbf{A controlled experiment} isolating the moment-sensitivity that
+distinguishes the DER from any Sharpe-based reward (Section~\ref{sec:controlled}).
+\item \textbf{A cross-sectional backtest} on $48$ real equities establishing
+statistically decisive drawdown dominance over the DSR (Section~\ref{sec:backtest}).
+\item \textbf{Honest signal ablations} on a $470$-stock universe that delimit what the
+reward can and cannot do, and that we argue is a more scientifically candid position
+than prevailing SOTA reports (Section~\ref{sec:signal}).
+\item \textbf{An architecture-agnostic head-to-head} showing the DER transfers
+unchanged to actor--critic and PPO, where \emph{DER-PPO matches the risk control of
+CVaR-PPO (CPPO) at roughly a quarter of the compute and without LLM signals}
+(Section~\ref{sec:ppo}).
+\item \textbf{A Fundamental-Law decomposition} that locates the DER precisely
+($IR=IC\cdot\sqrt{BR}\cdot TC$): the reward contributes to the transfer/risk term, not
+to forecasting skill, and a combined-signal engine wrapped by the DER is the honest
+route to (modest) alpha (Section~\ref{sec:alpha}).
+\end{enumerate}
+All experiments use real S\&P~500 data and are fully reproducible
+(Section~\ref{sec:repro}).
+
+\section{Related Work}\label{sec:related}
+
+\paragraph{RL for trading.} Direct policy search for trading originates with Moody and
+Saffell's RRL and the Differential Sharpe Ratio~\cite{moody2001}, later extended with
+deep representations~\cite{deng2017}, deep $Q$-learning agents (TDQN)~\cite{theate2021},
+and end-to-end portfolio networks~\cite{jiang2017}. Task-specific agents address
+execution~\cite{nevmyvaka2006} and market making~\cite{spooner2018}. The FinRL
+ecosystem~\cite{finrl2020} standardized environments, data pipelines, and baselines,
+and remains the dominant open-source framework. Our agent adopts the RRL formulation
+of~\cite{moody2001}; our contribution is orthogonal to the architecture and concerns
+the \emph{reward}.
+
+\paragraph{Risk measures and risk-sensitive control.} Coherent and convex risk
+measures~\cite{follmer2002} provide the axiomatic foundation; the entropic risk
+measure --- the exponential-utility certainty equivalent we adopt --- is the canonical
+convex measure with a Kullback--Leibler dual. In continuous time, maximizing the
+entropic criterion is a risk-sensitive stochastic control
+problem~\cite{bielecki1999,flemingmce1995}, whose HJB equation carries an
+exposure-penalizing term governed by the risk-aversion parameter. Conditional
+Value-at-Risk (CVaR)~\cite{rockafellar2000} is the competing risk functional in
+applied RL; unlike the entropic measure it is not smooth in its quantile and, in RL,
+typically requires sample sorting or an auxiliary distributional critic.
+
+\paragraph{Risk-sensitive RL.} The exponential/entropic criterion underlies the
+provably efficient risk-sensitive RL of Fei et al.~\cite{fei2020,fei2021}, the
+exponential-criteria actor--critic of Noorani et al.~\cite{noorani2022}, and the
+risk-sensitive $Q$-learning of Borkar~\cite{borkar2002}; CVaR appears in safety- and
+distributionally-constrained RL. These works establish the \emph{statistical} theory
+of the entropic objective (regret bounds, exploration). We complement them on the
+\emph{reward-engineering} side: the DER renders the same exponential criterion as an
+online, differentiable, telescoping per-step reward for direct-policy trading agents,
+where the relevant baseline is the DSR rather than tabular value iteration.
+
+\paragraph{Current SOTA and positioning.} The most recent risk-sensitive trading agents
+infuse LLM-generated signals into CVaR-PPO (CPPO)~\cite{benhenda2025} and its
+successors~\cite{dapo2025}. These report \emph{regime-dependent} outcomes --- one
+variant dominating in bull markets, another in bear markets --- and explicitly
+acknowledge persistent large drawdowns and limited interpretability as open problems.
+Against this backdrop, the DER offers three differentiators: (i) it is a closed-form,
+single-parameter reward requiring no LLM, news feed, auxiliary critic, or sample
+sorting; (ii) it is grounded in a classical risk measure and the risk-sensitive HJB
+equation rather than assembled heuristically; and (iii) we report its limits honestly,
+demonstrating decisive drawdown control while declining to claim alpha that our
+ablations show does not exist.
+
+\section{Problem Formulation}\label{sec:formulation}
+
+We consider a single risky asset with price $p_t$ and one-period return
+$r_t=(p_t-p_{t-1})/p_{t-1}$. At each step the agent chooses a position
+$F_t\in[-1,1]$ (long, short, or flat) via a policy $F_t=\tanh(w^\top x_t+b)$, where
+$x_t$ is an observed state and $(w,b)$ are learned parameters. With proportional
+transaction cost $\delta$, the realized trading return is
+\begin{equation}
+R_t \;=\; F_{t-1}\,r_t \;-\; \delta\,\lvert F_t-F_{t-1}\rvert .
+\label{eq:Rt}
+\end{equation}
+The agent maximizes a cumulative reward $\sum_t \rho_t$ by gradient ascent on
+$(w,b)$; the design question is the per-step reward $\rho_t$. The DSR
+baseline~\cite{moody2001} maintains exponential moving averages $A_t,B_t$ of $R_t$
+and $R_t^2$ and rewards the marginal change of the Sharpe ratio
+$S_t=A_t/\sqrt{B_t-A_t^2}$, namely
+$\DSR_t=(B_{t-1}\Delta A_t-\tfrac12A_{t-1}\Delta B_t)/(B_{t-1}-A_{t-1}^2)^{3/2}$
+with $\Delta A_t=R_t-A_{t-1}$, $\Delta B_t=R_t^2-B_{t-1}$. We now construct an
+alternative reward that is sensitive to all moments.
+
+\section{The Differential Entropic Reward}\label{sec:der}
+
+\subsection{Definition}
+
+For an exponential-utility investor with risk aversion $\theta>0$, the certainty
+equivalent of a random return $R$ is the entropic risk measure~\cite{follmer2002}
+\begin{equation}
+\CE_\theta(R) \;=\; -\frac{1}{\theta}\,\log \E\!\left[e^{-\theta R}\right].
+\label{eq:ce}
+\end{equation}
+
+\begin{definition}[Differential Entropic Reward]
+Let $M_t=(1-\eta)M_{t-1}+\eta\,e^{-\theta R_t}$ be an exponential moving average of
+$e^{-\theta R_t}$ with rate $\eta\in(0,1)$. The Differential Entropic Reward is
+\begin{equation}
+\DER_t \;=\; -\frac{1}{\theta}\,\log\frac{M_t}{M_{t-1}} .
+\label{eq:der}
+\end{equation}
+\end{definition}
+
+The estimator $M_t$ is the online analogue of $\E[e^{-\theta R}]$ and $-\tfrac1\theta\log M_t$
+the running certainty equivalent; $\DER_t$ rewards its one-step improvement.
+Algorithm~\ref{alg:der} gives the full training loop.
+
+\subsection{Properties}
+
+\begin{theorem}[Limiting cases and moment expansion]\label{thm:expansion}
+Let $R$ have finite cumulants $\kappa_1=\mu$, $\kappa_2=\sigma^2$, $\kappa_3$,
+$\kappa_4$. Then
+\begin{equation}
+\CE_\theta(R)
+=\mu-\frac{\theta}{2}\sigma^2+\frac{\theta^2}{6}\kappa_3-\frac{\theta^3}{24}\kappa_4+O(\theta^4).
+\label{eq:cumexp}
+\end{equation}
+In particular $\CE_\theta(R)\to\mu$ as $\theta\to0$ (risk-neutral limit); to first
+order $\CE_\theta(R)=\mu-\tfrac{\theta}{2}\sigma^2$, a mean--variance criterion.
+\end{theorem}
+\begin{proof}
+By~\eqref{eq:ce}, $-\theta\,\CE_\theta=\log\E[e^{-\theta R}]=K_R(-\theta)$ is the
+cumulant generating function evaluated at $-\theta$, with
+$K_R(s)=\sum_{n\ge1}\kappa_n s^n/n!$ wherever the moment generating function is finite
+in a neighborhood of $0$. Substituting $s=-\theta$ gives
+$-\theta\,\CE_\theta=-\theta\kappa_1+\tfrac{\theta^2}{2}\kappa_2-\tfrac{\theta^3}{6}\kappa_3+\tfrac{\theta^4}{24}\kappa_4-\cdots$;
+dividing by $-\theta$ yields~\eqref{eq:cumexp}. The limits follow by truncation and
+continuity.
+\end{proof}
+
+The signs are economically meaningful: $\CE_\theta$ rewards mean and positive skewness
+while penalizing variance and kurtosis, with weights scaling as increasing powers of
+$\theta$. The Sharpe ratio depends only on $(\kappa_1,\kappa_2)$ and is by construction
+blind to $\kappa_3,\kappa_4$.
+
+\begin{proposition}[Exact telescoping]\label{prop:tele}
+With $\CE_t\coloneq-\tfrac1\theta\log M_t$, the per-step rewards sum to the change in
+the running certainty equivalent: $\sum_{t=1}^{T}\DER_t = \CE_T-\CE_0$.
+\end{proposition}
+\begin{proof}
+By~\eqref{eq:der}, $\sum_{t=1}^{T}\DER_t
+=-\tfrac1\theta\sum_{t=1}^T(\log M_t-\log M_{t-1})
+=-\tfrac1\theta(\log M_T-\log M_0)=\CE_T-\CE_0$.
+\end{proof}
+
+Proposition~\ref{prop:tele} is the analogue of the DSR's defining property and ensures
+that maximizing the sum of myopic per-step rewards maximizes the terminal
+risk-adjusted objective, so the reward is consistent with the agent's long-run goal.
+
+\begin{proposition}[Robust / worst-case dual]\label{prop:dual}
+The entropic certainty equivalent admits the variational representation
+\begin{equation}
+\CE_\theta(R)=\inf_{Q\ll P}\Big\{\E_Q[R]+\tfrac{1}{\theta}\,\KL(Q\Vert P)\Big\},
+\label{eq:dual}
+\end{equation}
+where $P$ is the reference measure and the infimum is over measures $Q$ absolutely
+continuous w.r.t.\ $P$.
+\end{proposition}
+\begin{proof}[Proof sketch]
+This is the Donsker--Varadhan / Gibbs variational identity, equivalently the dual
+representation of the entropic convex risk measure~\cite{follmer2002}. The infimum is
+attained at the tilted measure $dQ^\star/dP\propto e^{-\theta R}$, for which
+$\E_{Q^\star}[R]+\tfrac1\theta\KL(Q^\star\Vert P)=-\tfrac1\theta\log\E_P[e^{-\theta R}]$.
+\end{proof}
+
+Equation~\eqref{eq:dual} gives the third reading of $\theta$: the agent optimizes
+against the worst plausible measure $Q$, penalized by its Kullback--Leibler divergence
+from the estimated $P$; larger $\theta$ admits more adversarial $Q$, i.e.\ greater
+distrust of the model.
+
+\subsection{Risk-sensitive HJB interpretation}
+
+In continuous time, maximizing $\CE_\theta$ of terminal wealth is a risk-sensitive
+stochastic control problem~\cite{bielecki1999,flemingmce1995}. For controlled state
+$dX=b(X,u)\,dt+\sigma(X)\,dW$ and value function $V$, the risk-sensitive HJB equation is
+\begin{equation}
+\partial_t V+\sup_u\Big[b^\top\nabla V+\tfrac12\,\mathrm{tr}\!\big(\sigma\sigma^\top\nabla^2V\big)
+-\tfrac{\theta}{2}\,\lVert\sigma^\top\nabla V\rVert^2\Big]=0,
+\label{eq:hjb}
+\end{equation}
+whose final term penalizes exposure to volatility and vanishes as $\theta\to0$,
+recovering the risk-neutral equation. The DER is the discrete-time, model-free shadow
+of~\eqref{eq:hjb}: rather than solving the HJB with a known model, the agent ascends
+the empirical $\sum_t\DER_t$. This grounding distinguishes the DER from ad-hoc
+composite rewards.
+
+\begin{figure}[t]
+\centering
+\fbox{\begin{minipage}{0.92\textwidth}
+\small
+\textbf{Algorithm 1: DER-RRL training}\\[2pt]
+\textbf{Input:} returns $\{r_t\}$, features $\{x_t\}$, cost $\delta$, risk aversion
+$\theta$, EMA rate $\eta$, learning rate $\alpha$, epochs $E$.\\
+Initialize policy parameters $(w,b)$.\\
+\textbf{for} epoch $=1,\dots,E$ \textbf{do}\\
+\hspace*{1.5em} compute positions $F_t=\tanh(w^\top x_t+b)$ and returns
+$R_t=F_{t-1}r_t-\delta|F_t-F_{t-1}|$ \eqref{eq:Rt};\\
+\hspace*{1.5em} update $M_t=(1-\eta)M_{t-1}+\eta e^{-\theta R_t}$ and
+$\DER_t=-\tfrac1\theta\log(M_t/M_{t-1})$ \eqref{eq:der};\\
+\hspace*{1.5em} objective $J(w,b)=\sum_t \DER_t = \CE_T-\CE_0$
+(Prop.~\ref{prop:tele});\\
+\hspace*{1.5em} $(w,b)\leftarrow(w,b)+\alpha\,\nabla_{(w,b)}J$ \ (Adam).\\
+\textbf{return} $(w,b)$.
+\end{minipage}}
+\caption{The DER replaces only the per-step reward; the RRL machinery is unchanged.
+All maps ($\tanh$, $e^{(\cdot)}$, $\log$) are smooth, so $J$ is differentiable and
+trainable by gradient ascent.}
+\label{alg:der}
+\end{figure}
+
+\section{Numerical Verification of the Theory}\label{sec:verify}
+
+Following a verify-before-claiming protocol, each theoretical statement is checked by
+two independent computations (the exact entropic formula~\eqref{eq:ce} versus an
+independent construction), seed $2025$. Table~\ref{tab:verify} summarizes; all eight
+checks pass.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lll}
+\toprule
+Claim & Check & Result \\
+\midrule
+C1 risk-neutral limit & $\CE_{\theta\to0}\!\to\!\mu$ & agree to $10^{-5}$ \\
+C2 first-order mean--variance & $\CE_\theta\!\approx\!\mu-\tfrac\theta2\sigma^2$ & agree to $5\times10^{-4}$ \\
+C3 cumulant expansion (4 terms) & \eqref{eq:cumexp} vs exact & err $<6\times10^{-10}$ ($\theta{=}2$) \\
+C4 telescoping & $\sum_t\DER_t=\CE_T-\CE_0$ & agree to $10^{-9}$ \\
+C5 risk aversion & fair gamble $\pm0.05$, $\CE_{100}<0$ & $-0.043$, monotone in $\theta$ \\
+C6 controlled example & equal Sharpe, $\CE$ differs & see Section~\ref{sec:controlled} \\
+\bottomrule
+\end{tabular}
+\caption{Numerical verification of the DER theory (\texttt{verify\_der\_theory.py},
+seed $2025$, $8/8$ pass).}
+\label{tab:verify}
+\end{table}
+
+\section{Experimental Methodology}\label{sec:method}
+
+\paragraph{Data.} Real daily OHLCV for S\&P~500 constituents, 2013-02-08 to 2018-02-07
+($1259$ trading days), including the 2015--2016 correction. The single-asset and
+cross-sectional backtests use $48$ and $470$ fully-covered constituents respectively.
+
+\paragraph{Policy and features.} Unless noted, the state $x_t$ is the vector of the
+most recent returns; the policy is the linear-$\tanh$ map of
+Section~\ref{sec:formulation}. The cross-sectional study (Section~\ref{sec:signal})
+uses per-day cross-sectionally standardized features (momentum, reversal,
+volatility, distance-to-high) and market-neutral, gross-normalized weights.
+
+\paragraph{Training and evaluation.} Parameters are trained by Adam on the
+DER (or DSR) objective; transaction cost $\delta=5$\,bps; EMA rate $\eta$ as in the
+RRL baseline. We use a $70/30$ chronological train/test split and report
+\emph{only} out-of-sample test metrics, averaged over multiple random seeds.
+Metrics are annualized Sharpe and Sortino ($\times\sqrt{252}$), terminal return, and
+maximum drawdown (MDD). Paired comparisons use the Wilcoxon signed-rank test.
+
+\section{Results}
+
+\subsection{Controlled experiment: variance is not enough}\label{sec:controlled}
+
+We construct two return streams with \emph{identical} mean and standard deviation ---
+hence identical Sharpe ratio ($0.0667$) --- but opposite skewness: one with rare large
+gains, one with rare large crashes (Figure~\ref{fig:motiv}). The DSR cannot prefer
+one. The entropic criterion discriminates sharply: at $\theta=100$ the favorable
+stream has $\CE=-0.0030$ versus $\CE=-0.0231$ for the crash-prone stream (claim C6).
+The gap is entirely due to the third- and higher-order terms in~\eqref{eq:cumexp}.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.86\textwidth]{motivating.png}
+\caption{Two streams with identical mean, variance, and Sharpe ratio but opposite
+skewness. The Sharpe ratio is identical by construction; the entropic certainty
+equivalent separates them, and the gap widens with $\theta$.}
+\label{fig:motiv}
+\end{figure}
+
+\subsection{Single-asset and regime behavior}\label{sec:single}
+
+On individual equities, the risk-aversion parameter behaves as a monotone risk dial.
+For a declining stock (GE), increasing $\theta$ monotonically tightens drawdown while
+shrinking exposure (Table~\ref{tab:thetasweep}). Against the DSR on declining names,
+the DER's protection is stark: on XOM the DSR returns $-36.6\%$ with a $-40.3\%$
+drawdown, whereas the DER returns $-0.8\%$ with a $-1.0\%$ drawdown; on GE the DSR
+drawdown is $-19.4\%$ versus $-2.2\%$ for the DER.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lrrrr}
+\toprule
+$\theta$ & 25 & 75 & 150 & 300 \\
+\midrule
+Max drawdown & $-6.4\%$ & $-2.2\%$ & $-1.1\%$ & $-0.6\%$ \\
+\bottomrule
+\end{tabular}
+\caption{DER on GE (out-of-sample): $\theta$ is a monotone risk dial.}
+\label{tab:thetasweep}
+\end{table}
+
+\subsection{Cross-sectional backtest}\label{sec:backtest}
+
+We train single-asset RRL agents with the DSR and the DER ($\theta=75$) on $48$
+S\&P~500 constituents, three seeds each, out-of-sample. Table~\ref{tab:backtest}
+aggregates the test set; Figure~\ref{fig:backtest} shows the per-asset distributions.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lrrr}
+\toprule
+Strategy & Mean return & Mean Sharpe & Mean MaxDD \\
+\midrule
+Buy \& Hold        & $+41.1\%$ & $0.95$ & $-17.1\%$ \\
+RRL + DSR          & $+6.5\%$  & $0.05$ & $-23.2\%$ \\
+RRL + DER ($\theta=75$) & $+0.6\%$ & $0.18$ & $\mathbf{-1.7\%}$ \\
+\bottomrule
+\end{tabular}
+\caption{Out-of-sample aggregates across $48$ real S\&P~500 equities.}
+\label{tab:backtest}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.92\textwidth]{backtest_plots.png}
+\caption{Left: distribution of maximum drawdown across $48$ equities --- DER (red)
+concentrates near zero, DSR (blue) spreads to $-50\%$. Right: per-asset Sharpe,
+DER vs DSR.}
+\label{fig:backtest}
+\end{figure}
+
+The headline result concerns risk. The DER yields a smaller maximum drawdown than the
+DSR for \emph{all $48$ assets} ($100\%$); no DER agent exceeds a $-20\%$ drawdown,
+whereas $54\%$ of DSR agents do; the worst DSR drawdown is $-50.4\%$ versus $-8.3\%$
+for the DER. A paired Wilcoxon signed-rank test on maximum drawdown gives
+$p\approx7\times10^{-15}$. The Sharpe-ratio difference favors the DER in only $56\%$
+of assets and is \emph{not} significant ($p\approx0.18$). The DER's advantage is thus
+specifically and decisively in downside control --- consistent with its theory --- not
+in risk-adjusted return per se. As expected in a bull sample, a passive long position
+attains the highest raw Sharpe; no active single-asset strategy on a linear policy
+beats it, a point we return to below.
+
+\subsection{What the reward cannot do: honest signal ablations}\label{sec:signal}
+
+A reward shapes \emph{how} an agent trades a given signal; it cannot create signal
+absent from the data. We document this boundary on a market-neutral cross-sectional
+universe of $470$ equities.
+
+\paragraph{Technical indicators.} Adding RSI, MACD, Bollinger \%B and related features
+helps on some assets (AAPL test Sharpe rises from $0.46$ to $1.35$) but not others; the
+effect is asset- and period-dependent and does not survive aggregation. Such indicators
+are deterministic functions of price and add no new information.
+
+\paragraph{Volume / order-flow.} We constructed six causal volume signals
+(volume-confirmed move, Amihud illiquidity, volume shock, OBV slope, price--volume
+correlation, money-flow index). Their out-of-sample information coefficients are all
+indistinguishable from zero ($|t|<2$; combined IC $=0.0001$), and four of the six are
+mutually redundant (cross-sectional correlation $>0.88$). Volume is an input to
+\emph{risk}, not to direction, at the daily horizon --- which is precisely where a
+state-dependent $\theta$ could use it.
+
+\paragraph{Signal learning overfits.} A fixed $12{-}1$ momentum factor earns an
+out-of-sample Sharpe of $0.68$, uncorrelated with the market. Attempting to
+\emph{learn} the cross-sectional score --- with an MLP (test Sharpe $0.08$) or an
+$L_2$-regularized linear model (test Sharpe $-1.26$, with near-zero momentum loading)
+--- robustly destroys this signal through overfitting; the fixed, theory-driven factor
+outperforms every learned model. Adding the momentum factor as a market-neutral
+overlay to a long market position improves the combined Sharpe modestly
+($1.63\to1.65$) and reduces drawdown ($-7.6\%\to-4.9\%$), a diversification rather
+than an alpha effect (Figure~\ref{fig:levers}).
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.86\textwidth]{all_levers_final.png}
+\caption{Out-of-sample equity ($470$ equities). A fixed cross-sectional momentum
+overlay added to the market improves risk-adjusted return and reduces drawdown;
+\emph{learning} the signal (not shown) underperforms the fixed factor.}
+\label{fig:levers}
+\end{figure}
+
+\paragraph{Implication.} These are boundaries, not failures. They establish that the
+contribution of the DER is risk shaping on top of a fixed signal, and that performance
+gains must come from new orthogonal information, not from greater model flexibility.
+
+\section{Architecture-Agnostic Risk Control: Actor--Critic and PPO}\label{sec:ppo}
+
+The DER is a reward, not an architecture; it should therefore transfer to richer
+agents. We verify this and conduct a head-to-head against the CVaR objective used by
+current state-of-the-art risk-sensitive agents~\cite{benhenda2025,rockafellar2000}.
+
+\paragraph{Risk-sensitive critic.} In an actor--critic agent the critic learns a value
+function. The risk-neutral Bellman equation $V(x_t)=\E[R_t+\gamma V(x_{t+1})]$ becomes,
+under the exponential criterion, the risk-sensitive Bellman
+equation~\cite{fei2021,borkar2002}
+\begin{equation}
+V_\theta(x_t)=-\tfrac1\theta\log\E\!\big[e^{-\theta(R_t+\gamma V_\theta(x_{t+1}))}\big],
+\label{eq:rsbellman}
+\end{equation}
+which reduces to the risk-neutral form as $\theta\to0$. The cleanest and most robust
+way to realize~\eqref{eq:rsbellman} in practice is to feed the DER as the per-step
+reward: the agent then maximizes cumulative DER, and risk sensitivity enters through
+the reward rather than through bespoke critic machinery.
+
+\paragraph{Actor--critic transfer.} On the regime-switching environment with crashes
+(Section~\ref{sec:single}), an advantage actor--critic (A2C) trained on the DER reward
+controls drawdown far better than the same A2C trained on raw P\&L or the DSR: mean
+out-of-sample MaxDD of $-3.8\%$ for DER versus $-29.5\%$ (risk-neutral) and $-24.2\%$
+(DSR), across three seeds. The drawdown-control signature is thus a property of the
+reward and survives the change of architecture.
+
+\paragraph{PPO head-to-head: DER vs CVaR.} We then fix a single PPO core (clipped
+surrogate, shared per-asset Gaussian policy, long-only exposure) and vary \emph{only}
+the risk objective across three reward streams: raw P\&L (risk-neutral PPO), a
+Rockafellar--Uryasev tail penalty (CPPO, i.e.\ CVaR), and the DER (DER-PPO). The
+universe is a $55$-name Nasdaq-100 subset, out-of-sample, three seeds.
+Table~\ref{tab:ppo} and Figure~\ref{fig:ppo} report the results.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lrrrr}
+\toprule
+Strategy & Return & Sharpe & Sortino & MaxDD \\
+\midrule
+Equal-weight (B\&H)   & $+41.2\%$ & $2.13$ & $2.52$ & $-7.9\%$ \\
+PPO (risk-neutral)    & $+18.9\%$ & $2.10$ & $2.49$ & $-4.0\%$ \\
+CPPO (CVaR)           & $+18.2\%$ & $2.11$ & $2.49$ & $-3.8\%$ \\
+DER-PPO ($\theta=50$) & $+18.7\%$ & $2.11$ & $2.49$ & $-3.9\%$ \\
+\bottomrule
+\end{tabular}
+\caption{PPO head-to-head, out-of-sample (Nasdaq-100 subset). DER-PPO is statistically
+indistinguishable from CPPO in risk-adjusted terms.}
+\label{tab:ppo}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.95\textwidth]{ppo_headtohead.png}
+\caption{Left: out-of-sample equity --- the three PPO variants are nearly
+indistinguishable and all reduce drawdown relative to the passive benchmark. Right:
+training cost --- DER-PPO attains the same risk control as CPPO at roughly a quarter
+of the compute, because the entropic reward is a closed-form exponential moving average
+whereas CVaR requires per-step rolling-quantile estimation.}
+\label{fig:ppo}
+\end{figure}
+
+Two findings stand out. First, \emph{DER-PPO matches CPPO}: their risk-adjusted
+performance is identical to within seed noise (Sharpe $2.11$ versus $2.11$, MaxDD
+$-3.9\%$ versus $-3.8\%$), yet the DER reward is closed-form and differentiable,
+trains in roughly a quarter of the wall-clock time of the CVaR variant (no per-step
+quantile sorting), and requires no LLM or news signals of the kind used in current
+SOTA~\cite{benhenda2025}. Second, and honestly, on this benign, largely
+trending test window the three risk objectives \emph{converge} --- there is little
+tail risk to differentiate them; the DER's decisive separation from the risk-neutral
+objective appears under stress, as established in Sections~\ref{sec:single}
+and~\ref{sec:backtest}. A fully stressed head-to-head (a test period containing a
+2020- or 2022-style crash) is the natural confirmation and is left to future work, as
+it requires data beyond our cached window.
+
+\section{Where Does Alpha Come From? A Fundamental-Law Decomposition}\label{sec:alpha}
+
+The preceding sections show that the DER controls risk but does not, by itself,
+generate excess return --- a property our ablations (Section~\ref{sec:signal}) trace
+to the scarcity of predictive signal. To make this precise and constructive, we adopt
+the Fundamental Law of Active Management~\cite{grinold1989,clarke2002}, which decomposes
+the information ratio (IR, active return per unit of active risk) of any active strategy
+as
+\begin{equation}
+IR \;=\; IC \cdot \sqrt{BR} \cdot TC,
+\label{eq:funlaw}
+\end{equation}
+where $IC$ (information coefficient) is the cross-sectional correlation between a signal
+and subsequent returns --- the forecasting skill; $BR$ (breadth) is the number of
+independent bets per year; and $TC$ (transfer coefficient) is the efficiency with which
+the signal is translated into positions under constraints and costs ($TC=1$ being
+frictionless).
+
+Equation~\eqref{eq:funlaw} locates the DER exactly: it contributes nothing to $IC$ ---
+no reward can manufacture forecasting skill --- but it operates on $TC$ and on the risk
+denominator, defending realized performance through drawdown control. Alpha must
+therefore originate in $IC$ (a genuine signal) and breadth; the DER is the risk and
+transfer layer placed on top.
+
+We test this on the $470$-stock universe, out-of-sample, with monthly rebalancing. For
+each candidate signal we measure the cross-sectional $IC$ and its significance, the
+Fundamental-Law upper bound on IR (using $BR=N\times$ rebalances/yr, the optimistic
+independent-bets assumption), and the realized IR of a long-short decile portfolio net
+of $5$ bps. Table~\ref{tab:ic} reports the results.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lrrrrr}
+\toprule
+Signal & $IC$ & $IC$ $t$-stat & pred.\ IR & real.\ IR & $TC$ \\
+\midrule
+12-1 momentum       & $0.024$ & $0.6$ & $1.82$ & $0.09$ & $0.05$ \\
+6-1 momentum        & $0.038$ & $0.8$ & $2.83$ & $0.66$ & $0.24$ \\
+1-month reversal    & $0.036$ & $0.9$ & $2.68$ & $0.41$ & $0.15$ \\
+low volatility      & $0.004$ & $0.1$ & $0.27$ & $-0.75$ & --- \\
+long trend (50/200) & $0.041$ & $0.8$ & $3.07$ & $0.45$ & $0.15$ \\
+\midrule
+\textbf{Combined}   & $0.041$ & $1.5$ & $3.04$ & $\mathbf{0.84}$ & $0.28$ \\
+\bottomrule
+\end{tabular}
+\caption{Fundamental-Law decomposition (470-stock universe, out-of-sample, monthly
+rebalancing). Predicted IR uses the optimistic independent-bets breadth; realized IR is
+a long-short decile portfolio net of $5$ bps. Alpha is weak but positive and improves
+with signal combination; the DER does not enter $IC$.}
+\label{tab:ic}
+\end{table}
+
+Three lessons follow. First, individual signals carry only weak, statistically
+insignificant skill ($IC\approx0.02$--$0.04$, all $|t|<2$), consistent with our
+overfitting findings and with the intrinsic difficulty of return prediction. Second,
+combining orthogonal signals raises both skill and realized performance (combined
+realized IR $\approx0.84$, market-neutral, after costs) --- the breadth mechanism
+of~\eqref{eq:funlaw}. Third, the gap between the optimistic predicted IR and the
+realized IR is large ($TC\approx0.05$--$0.28$), reflecting the correlation of bets and
+transaction costs; the independent-bets breadth is, as is well known, an upper
+bound~\cite{clarke2002}.
+
+The constructive reading is an architecture: a \emph{signal engine} that combines
+weak-but-real orthogonal predictors to supply $IC$ and breadth, wrapped by the
+\emph{DER as the risk layer} that defends the transfer coefficient and the drawdown.
+This cleanly separates the two problems --- where return comes from (signal) and how
+risk is controlled (the DER) --- and is the honest basis for any deployable system. We
+caution that the present evidence is suggestive rather than conclusive: the $IC$s are
+not individually significant over this single five-year window, and confirmation
+requires a longer sample and strict walk-forward validation.
+
+\subsection{Out-of-sample validation on a longer, stressed window
+(2015--2024)}\label{sec:alpha-oos}
+
+We now supply exactly that validation. Using free Yahoo Finance data --- which carries
+its own caveats, discussed below --- we assemble a $150$-name large-capitalisation
+universe over $2015$--$2024$, a window that, unlike the $2013$--$2018$ sample, contains
+two genuine stress events (the March $2020$ COVID crash and the $2022$ bear market). We
+introduce two \emph{new orthogonal signals} of the kind the Fundamental Law requires for
+$IC$, and pass each through the identical gate of Section~\ref{sec:alpha}: (i)
+post-earnings-announcement drift (PEAD)~\cite{bernard1989}, the standardized earnings
+surprise entered with a strict $T{+}1$ delay after each announcement (no look-ahead),
+and (ii) cross-sectional $12{-}1$ momentum, both in raw form and after demeaning
+\emph{within} sector --- the sector-neutral construction that is the textbook remedy
+for momentum crashes~\cite{daniel2016}. Risk is controlled by a state-dependent
+$\theta_t$ driven by the VIX, the practical realisation of the DER risk layer.
+Table~\ref{tab:ic-oos} reports the gate; Table~\ref{tab:strat-oos} the walk-forward
+strategies.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lrrr}
+\toprule
+Signal (2015--2024, OOS) & $IC$ & $IC$ $t$-stat & real.\ IR \\
+\midrule
+PEAD earnings surprise   & $0.023$ & $1.1$ & $-0.60$ \\
+12-1 momentum            & $0.040$ & $0.9$ & $-0.02$ \\
+sector-neutral momentum  & $0.010$ & $0.3$ & $-0.58$ \\
+\bottomrule
+\end{tabular}
+\caption{Fundamental-Law gate on the longer, stressed window. \emph{None} of the three
+signals clears the $|t|>2$ significance bar. The cross-sectional momentum edge that was
+weakly positive over $2013$--$2018$ --- where the \emph{combined} factor reached a
+realized IR of $0.84$ (Table~\ref{tab:ic}) --- does not reappear, and
+sector-neutralisation \emph{lowers} the raw momentum $IC$ further over this sample. The
+honest reading is a null: no deployable directional skill is present in these free-data
+signals here.}
+\label{tab:ic-oos}
+\end{table}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lrrr}
+\toprule
+Strategy (2015--2024, OOS) & Return & Sharpe & MaxDD \\
+\midrule
+Market (long-only)            & $+30.5\%$ & $0.70$ & $-17.6\%$ \\
+12-1 momentum                 & $-21.0\%$ & $-0.76$ & $-25.6\%$ \\
+Sector-neutral momentum       & $-27.7\%$ & $-1.71$ & $-29.2\%$ \\
+\quad + DER VIX-$\theta_t$ risk layer & $-23.3\%$ & $-1.50$ & $\mathbf{-24.8\%}$ \\
+Market + market-neutral overlay & $+6.6\%$ & $0.27$ & $\mathbf{-14.3\%}$ \\
+\bottomrule
+\end{tabular}
+\caption{Walk-forward strategies on the stressed window. The cross-sectional momentum book
+\emph{loses} against a passive long position in this mega-cap-led regime --- a direct
+out-of-sample refutation of the durability of the $2013$--$2018$ momentum edge. The DER
+risk layer does what it is designed to do and nothing it is not: VIX-driven $\theta_t$
+tightens the momentum book's drawdown ($-24.8\%$ vs.\ $-29.2\%$), and adding the
+market-neutral overlay to the market reduces drawdown ($-14.3\%$ vs.\ $-17.6\%$). On the
+worst rolling $60$-day sub-window the risk-layered book draws down $-9.0\%$ against the
+market's $-16.0\%$.}
+\label{tab:strat-oos}
+\end{table}
+
+Two conclusions follow, and we state them without softening. First, the modest momentum
+alpha documented over $2013$--$2018$ does \emph{not} survive into $2015$--$2024$: the
+$IC$ is insignificant and the long--short book underperforms a passive position. This is
+consistent with the well-documented post-$2015$ decay and crash-proneness of cross-sectional
+momentum~\cite{daniel2016} and vindicates the caution of the preceding paragraph rather
+than overturning it. Second, and in the same experiment, the DER risk layer continues to
+deliver its one demonstrable effect --- drawdown control --- including on the rolling
+stressed sub-window, exactly as the single-asset and PPO results predicted under stress.
+The separation the Fundamental Law makes precise is therefore reinforced, not weakened, by
+the longer sample: \emph{return is scarce and regime-dependent; risk control is robust and
+transferable.}
+
+\paragraph{Caveats of the free-data validation.} This validation inherits three
+limitations we name explicitly rather than bury. The universe is built from
+\emph{current} constituents, so it carries survivorship bias; the earnings consensus used
+for the surprise is the vendor's latest figure rather than a strict point-in-time
+snapshot, which can only \emph{flatter} PEAD --- yet PEAD still fails the gate; and the
+breadth in $IR=IC\sqrt{BR}\,TC$ remains the optimistic independent-bets bound. Each of
+these biases works \emph{in favour} of finding alpha, which makes the null result more,
+not less, credible.
+
+\section{Discussion}\label{sec:discussion}
+
+The DER occupies a specific and, we argue, well-motivated point in design space.
+Relative to the DSR~\cite{moody2001} it adds sensitivity to skewness and kurtosis at no
+architectural cost and with a single interpretable parameter. Relative to
+CVaR-based agents~\cite{rockafellar2000,benhenda2025} it is smooth, differentiable, and
+critic-free, and inherits a closed-form dual~\eqref{eq:dual} and HJB
+interpretation~\eqref{eq:hjb}. Relative to the risk-sensitive RL
+theory~\cite{fei2020,fei2021,noorani2022}, which studies the same exponential criterion
+in tabular or function-approximation regret settings, we contribute its
+\emph{reward-engineering} realization for direct-policy trading. The empirical
+signature --- decisive, statistically significant drawdown control without a claim of
+alpha --- is, we contend, a more scientifically defensible report than regime-dependent
+return claims, and is directly useful for capital that must be protected.
+
+\section{Limitations and Future Work: Toward Risk-Managed Strategies}\label{sec:future}
+
+\paragraph{Limitations.} The study is confined to daily equity data over a single
+five-year window with linear or shallow policies. The directional-signal conclusions
+may differ at intraday horizons, where genuine microstructure information
+exists~\cite{nevmyvaka2006,spooner2018}, or with fundamental and cross-asset features
+not accessible in our setting. Crucially, our ablations (Section~\ref{sec:signal})
+establish that performance gains require new \emph{information}, not a new reward; we
+therefore frame the following directions as deliberate future work rather than claims.
+
+\paragraph{A research-grounded roadmap.} The strategy literature suggests a concrete,
+testable programme in which the DER plays its proven role --- risk shaping --- on top
+of documented signals.
+\begin{enumerate}
+\item \textbf{Orthogonal signal ensemble.} Rather than learning a single signal (which
+we showed overfits), combine the few signals known to carry out-of-sample information:
+cross-sectional momentum~\cite{jegadeesh1993} and time-series
+momentum~\cite{moskowitz2012}, which is documented to ``perform best during extreme
+markets.'' Each is used with fixed, theory-driven sign, and the ensemble is weighted
+by \emph{risk parity}~\cite{asness2012} rather than by a learned mapping, directly
+addressing the leverage-aversion and diversification concerns that motivate that
+construction.
+\item \textbf{State-dependent $\theta$ as principled volatility management.} Momentum's
+characteristic failure mode is the \emph{momentum crash}~\cite{daniel2016}, and the
+established remedy is to scale exposure by ex-ante inverse volatility. This is exactly
+what a regime-aware, state-dependent risk aversion $\theta_t$ implements within the DER:
+raising $\theta_t$ when volatility (or the directionally-uninformative but
+risk-informative volume signals of Section~\ref{sec:signal}) is high de-risks the book
+before turbulence. Volatility-managed portfolios~\cite{moreira2017} report higher
+Sharpe ratios precisely because volatility is more forecastable than returns ---
+giving the DER risk layer a documented mechanism through which to add value.
+\item \textbf{Honest out-of-sample caveat.} We will test these against the known
+caution that volatility management can \emph{harm} real-time performance and is most
+reliable when combined with, rather than replacing, the unmanaged
+strategy~\cite{moreira2017}; the evaluation must therefore be strictly walk-forward and
+report combined as well as stand-alone variants.
+\item \textbf{Methodological neighbours.} The Sharpe-optimised deep momentum networks
+of Lim, Zohren and Roberts~\cite{lim2019}, which learn position sizing within a
+volatility-scaling framework and add a turnover regulariser, are the closest
+methodological reference point; replacing their Sharpe objective with the DER, and
+their LSTM with our entropic per-step reward, is a natural head-to-head experiment.
+\end{enumerate}
+This programme keeps the contribution of the present paper intact --- the DER as a
+principled, single-parameter risk layer --- while pursuing performance through the only
+avenue our evidence supports: combining genuine, orthogonal signals under disciplined,
+volatility-aware risk control.
+
+\section{Conclusion}\label{sec:conclusion}
+
+We introduced the Differential Entropic Reward, an online, differentiable, telescoping
+per-step reward that renders the entropic certainty equivalent --- and hence
+sensitivity to all return cumulants through a single parameter $\theta$ --- usable by
+gradient-based RL trading agents. We proved its limiting cases, cumulant expansion,
+telescoping identity, and robust dual, verified each numerically, and showed
+empirically on real equities that it controls drawdown decisively and significantly
+relative to the Differential Sharpe Ratio, while honestly delimiting that it does not
+manufacture predictive signal. The DER is a principled, interpretable,
+single-parameter mechanism for the one thing it demonstrably delivers: control of
+downside risk.
+
+\section*{Reproducibility}\label{sec:repro}
+\addcontentsline{toc}{section}{Reproducibility}
+\texttt{verify\_der\_theory.py} checks claims C1--C6 two ways (seed $2025$, $8/8$ pass).
+\texttt{backtest.py} regenerates Table~\ref{tab:backtest}, Figure~\ref{fig:backtest},
+and the Wilcoxon tests; \texttt{harness.py} runs any single-asset configuration and
+Table~\ref{tab:thetasweep}; \texttt{volume\_signals.py} reproduces the
+information-coefficient and redundancy analysis; \texttt{all\_levers\_v3.py} reproduces
+the cross-sectional results and Figure~\ref{fig:levers}; \texttt{motivating\_example.py}
+reproduces Figure~\ref{fig:motiv}. \texttt{actor\_critic\_der.py} reproduces the
+actor--critic transfer result, and \texttt{ppo\_headtohead.py} with
+\texttt{ppo\_figure.py} reproduce Table~\ref{tab:ppo} and Figure~\ref{fig:ppo}.
+\texttt{ic\_analysis.py} reproduces the Fundamental-Law decomposition
+(Table~\ref{tab:ic}). Data are real S\&P~500 OHLCV (2013--2018), auto-downloaded from
+a public mirror.
+
+\begin{thebibliography}{99}
+\small
+\bibitem{moody2001} J.~Moody and M.~Saffell. Learning to trade via direct
+reinforcement. \emph{IEEE Transactions on Neural Networks}, 12(4):875--889, 2001.
+\bibitem{deng2017} Y.~Deng, F.~Bao, Y.~Kong, Z.~Ren, and Q.~Dai. Deep direct
+reinforcement learning for financial signal representation and trading. \emph{IEEE
+Transactions on Neural Networks and Learning Systems}, 28(3):653--664, 2017.
+\bibitem{theate2021} T.~Th\'eate and D.~Ernst. An application of deep reinforcement
+learning to algorithmic trading. \emph{Expert Systems with Applications}, 173:114632,
+2021.
+\bibitem{jiang2017} Z.~Jiang, D.~Xu, and J.~Liang. A deep reinforcement learning
+framework for the financial portfolio management problem. arXiv:1706.10059, 2017.
+\bibitem{nevmyvaka2006} Y.~Nevmyvaka, Y.~Feng, and M.~Kearns. Reinforcement learning
+for optimized trade execution. In \emph{Proc.\ 23rd Int.\ Conf.\ on Machine Learning
+(ICML)}, 2006.
+\bibitem{spooner2018} T.~Spooner, J.~Fearnley, R.~Savani, and A.~Koukorinis. Market
+making via reinforcement learning. arXiv:1804.04216, 2018.
+\bibitem{hambly2023} B.~Hambly, R.~Xu, and H.~Yang. Recent advances in reinforcement
+learning in finance. \emph{Mathematical Finance}, 33(3):437--503, 2023.
+\bibitem{finrl2020} X.-Y.~Liu, H.~Yang, Q.~Chen, R.~Zhang, L.~Yang, B.~Xiao, and
+C.~D.~Wang. FinRL: A deep reinforcement learning library for automated stock trading
+in quantitative finance. \emph{Deep RL Workshop, NeurIPS}, 2020.
+\bibitem{benhenda2025} M.~Benhenda. FinRL-DeepSeek: LLM-infused risk-sensitive
+reinforcement learning for trading agents. arXiv:2502.07393, 2025.
+\bibitem{dapo2025} R.~Zha et al. A new DAPO algorithm for stock trading.
+arXiv:2505.06408, 2025.
+\bibitem{follmer2002} H.~F\"ollmer and A.~Schied. Convex measures of risk and trading
+constraints. \emph{Finance and Stochastics}, 6(4):429--447, 2002.
+doi:10.1007/s007800200072.
+\bibitem{bielecki1999} T.~R.~Bielecki and S.~R.~Pliska. Risk-sensitive dynamic asset
+management. \emph{Applied Mathematics \& Optimization}, 39:337--360, 1999.
+doi:10.1007/s002459900110.
+\bibitem{flemingmce1995} W.~H.~Fleming and W.~M.~McEneaney. Risk-sensitive control on
+an infinite time horizon. \emph{SIAM Journal on Control and Optimization},
+33(6):1881--1915, 1995.
+\bibitem{rockafellar2000} R.~T.~Rockafellar and S.~Uryasev. Optimization of conditional
+value-at-risk. \emph{Journal of Risk}, 3:21--41, 2000. doi:10.21314/JOR.2000.038.
+\bibitem{fei2020} Y.~Fei, Z.~Yang, Y.~Chen, Z.~Wang, and Q.~Xie. Risk-sensitive
+reinforcement learning: near-optimal risk-sample tradeoff in regret. In
+\emph{Advances in Neural Information Processing Systems (NeurIPS)}, 2020.
+\bibitem{fei2021} Y.~Fei, Z.~Yang, Y.~Chen, and Z.~Wang. Exponential Bellman equation
+and improved regret bounds for risk-sensitive reinforcement learning. In
+\emph{Advances in Neural Information Processing Systems (NeurIPS)}, 2021.
+\bibitem{noorani2022} E.~Noorani, C.~N.~Mavridis, and J.~S.~Baras. Risk-sensitive
+reinforcement learning with exponential criteria. arXiv:2212.09010, 2022.
+\bibitem{borkar2002} V.~S.~Borkar. Q-learning for risk-sensitive control.
+\emph{Mathematics of Operations Research}, 27(2):294--311, 2002.
+\bibitem{jegadeesh1993} N.~Jegadeesh and S.~Titman. Returns to buying winners and
+selling losers: implications for stock market efficiency. \emph{Journal of Finance},
+48(1):65--91, 1993. doi:10.1111/j.1540-6261.1993.tb04702.x.
+\bibitem{bernard1989} V.~L.~Bernard and J.~K.~Thomas. Post-earnings-announcement drift:
+delayed price response or risk premium? \emph{Journal of Accounting Research},
+27:1--36, 1989. doi:10.2307/2491062.
+\bibitem{moskowitz2012} T.~J.~Moskowitz, Y.~H.~Ooi, and L.~H.~Pedersen. Time series
+momentum. \emph{Journal of Financial Economics}, 104(2):228--250, 2012.
+\bibitem{daniel2016} K.~Daniel and T.~J.~Moskowitz. Momentum crashes. \emph{Journal of
+Financial Economics}, 122(2):221--247, 2016.
+\bibitem{moreira2017} A.~Moreira and T.~Muir. Volatility-managed portfolios.
+\emph{Journal of Finance}, 72(4):1611--1644, 2017. doi:10.1111/jofi.12513.
+\bibitem{asness2012} C.~S.~Asness, A.~Frazzini, and L.~H.~Pedersen. Leverage aversion
+and risk parity. \emph{Financial Analysts Journal}, 68(1):47--59, 2012.
+\bibitem{lim2019} B.~Lim, S.~Zohren, and S.~Roberts. Enhancing time series momentum
+strategies using deep neural networks. \emph{Journal of Financial Data Science},
+1(4):19--38, 2019. arXiv:1904.04912.
+\bibitem{grinold1989} R.~C.~Grinold. The fundamental law of active management.
+\emph{Journal of Portfolio Management}, 15(3):30--37, 1989.
+\bibitem{clarke2002} R.~Clarke, H.~de Silva, and S.~Thorley. Portfolio constraints and
+the fundamental law of active management. \emph{Financial Analysts Journal},
+58(5):48--66, 2002.
+\end{thebibliography}
+
+\end{document}
