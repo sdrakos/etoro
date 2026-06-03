@@ -71,3 +71,34 @@ def test_upsert_within_single_batch_prefers_stocks(tmp_path):
         {"symbol": "ABT", "instrument_id": 100594, "asset_class": "Stocks"},
     ])
     assert cat.get_many(["ABT"])["ABT"]["instrument_id"] == 100594
+
+
+def test_query_filters_by_asset_class_and_paginates(tmp_path):
+    from data_cache.etoro_catalog import EtoroCatalog
+    cat = EtoroCatalog(tmp_path / "c.db")
+    cat.upsert([{"symbol": f"S{i}", "instrument_id": i, "asset_class": "Stocks",
+                 "display_name": f"Stock {i}"} for i in range(1, 6)]
+               + [{"symbol": "BTC", "instrument_id": 100, "asset_class": "Crypto",
+                   "display_name": "Bitcoin"}])
+    rows, total = cat.query("Stocks", page=1, page_size=2)
+    assert total == 5 and len(rows) == 2
+    rows2, total2 = cat.query("Crypto")
+    assert total2 == 1 and rows2[0]["symbol"] == "BTC"
+
+
+def test_query_text_filter(tmp_path):
+    from data_cache.etoro_catalog import EtoroCatalog
+    cat = EtoroCatalog(tmp_path / "c.db")
+    cat.upsert([{"symbol": "AAPL", "instrument_id": 1, "asset_class": "Stocks", "display_name": "Apple"},
+                {"symbol": "MSFT", "instrument_id": 2, "asset_class": "Stocks", "display_name": "Microsoft"}])
+    rows, total = cat.query("Stocks", q="apple")
+    assert total == 1 and rows[0]["symbol"] == "AAPL"
+
+
+def test_query_name_sort(tmp_path):
+    from data_cache.etoro_catalog import EtoroCatalog
+    cat = EtoroCatalog(tmp_path / "c.db")
+    cat.upsert([{"symbol": "Z", "instrument_id": 1, "asset_class": "Stocks", "display_name": "Zeta"},
+                {"symbol": "A", "instrument_id": 2, "asset_class": "Stocks", "display_name": "Alpha"}])
+    rows, _ = cat.query("Stocks", sort="name")
+    assert [r["display_name"] for r in rows] == ["Alpha", "Zeta"]

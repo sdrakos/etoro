@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS instruments (
     updated_at         REAL
 );
 CREATE INDEX IF NOT EXISTS idx_instruments_id ON instruments(instrument_id);
+CREATE INDEX IF NOT EXISTS idx_instruments_asset ON instruments(asset_class);
 """
 
 
@@ -80,3 +81,25 @@ class EtoroCatalog:
     def count(self) -> int:
         with sqlite3.connect(self.db_path) as conn:
             return conn.execute("SELECT COUNT(*) FROM instruments").fetchone()[0]
+
+    def query(self, asset_class: str, q: Optional[str] = None, sort: str = "name",
+              page: int = 1, page_size: int = 50) -> tuple[list[dict], int]:
+        """Return (rows, total) for one asset_class, optionally text-filtered (symbol or
+        display_name contains q), sorted by display_name ('name') or symbol, paginated."""
+        page = max(1, page)
+        page_size = max(1, min(page_size, 200))
+        where = "asset_class = ?"
+        params: list = [asset_class]
+        if q:
+            where += " AND (UPPER(symbol) LIKE ? OR UPPER(display_name) LIKE ?)"
+            like = f"%{q.upper()}%"
+            params += [like, like]
+        order = "display_name" if sort == "name" else "symbol"
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            total = conn.execute(
+                f"SELECT COUNT(*) FROM instruments WHERE {where}", params).fetchone()[0]
+            rows = conn.execute(
+                f"SELECT * FROM instruments WHERE {where} ORDER BY {order} "
+                f"LIMIT ? OFFSET ?", params + [page_size, (page - 1) * page_size]).fetchall()
+        return [dict(r) for r in rows], total
