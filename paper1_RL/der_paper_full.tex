@@ -677,8 +677,8 @@ and (ii) cross-sectional $12{-}1$ momentum, both in raw form and after demeaning
 \emph{within} sector --- the sector-neutral construction that is the textbook remedy
 for momentum crashes~\cite{daniel2016}. Risk is controlled by a state-dependent
 $\theta_t$ driven by the VIX, the practical realisation of the DER risk layer.
-Table~\ref{tab:ic-oos} reports the gate; Table~\ref{tab:strat-oos} the walk-forward
-strategies.
+Table~\ref{tab:ic-oos} and Figure~\ref{fig:gate-oos} report the gate;
+Table~\ref{tab:strat-oos} and Figure~\ref{fig:equity-oos} the walk-forward strategies.
 
 \begin{table}[h]
 \centering
@@ -700,6 +700,16 @@ honest reading is a null: no deployable directional skill is present in these fr
 signals here.}
 \label{tab:ic-oos}
 \end{table}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.72\textwidth]{alpha_gate_oos.png}
+\caption{The Fundamental-Law gate on the stressed window. Bars are the absolute
+out-of-sample $IC$ $t$-statistic of each signal; none clears the $|t|>2$ threshold
+(dashed line), so all are rejected (red). Information coefficients are annotated above
+each bar.}
+\label{fig:gate-oos}
+\end{figure}
 
 \begin{table}[h]
 \centering
@@ -724,6 +734,16 @@ worst rolling $60$-day sub-window the risk-layered book draws down $-9.0\%$ agai
 market's $-16.0\%$.}
 \label{tab:strat-oos}
 \end{table}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.85\textwidth]{sector_mom_oos.png}
+\caption{Out-of-sample equity on the stressed window ($2015$--$2024$, including the
+$2020$ and $2022$ stress events). The cross-sectional momentum book underperforms a
+passive market position; the DER VIX-$\theta_t$ risk layer and the market-neutral overlay
+deliver their effect through drawdown control rather than return.}
+\label{fig:equity-oos}
+\end{figure}
 
 Two conclusions follow, and we state them without softening. First, the modest momentum
 alpha documented over $2013$--$2018$ does \emph{not} survive into $2015$--$2024$: the
