@@ -35,12 +35,11 @@ def client(tmp_path, monkeypatch):
         {"instrumentId": 1001, "symbol": "AAPL", "displayName": "Apple",
          "assetClass": "Stocks", "exchangeName": "Nasdaq", "currentRate": 213.6},
         {"instrumentId": 1002, "symbol": "MSFT", "displayName": "Microsoft",
-         "assetClass": "Stocks", "exchangeName": "Nasdaq", "currentRate": 401.1},
+         "assetClass": "Stocks", "exchangeName": "Nasdaq", "currentRate": 400.0},
     ]
-    rates = {1001: {"bid": 213.5, "ask": 213.7, "lastExecution": 213.6},
-             1002: {"bid": 401.0, "ask": 401.2, "lastExecution": 401.1}}
+    rates = {1001: {"bid": 213.5, "ask": 213.7, "lastExecution": 213.6}}  # no MSFT
     closing = {1001: {"officialClosingPrice": 210.0, "isMarketOpen": True},
-               1002: {"officialClosingPrice": 405.0, "isMarketOpen": True}}
+               1002: {"officialClosingPrice": 396.0, "isMarketOpen": True}}
     fake = FakeEtoro(instruments, rates, closing)
     monkeypatch.setattr(screener, "get_server_client", lambda: fake)
     monkeypatch.setattr(screener, "CATALOG_DB", tmp_path / "cat.db")
@@ -73,6 +72,16 @@ def test_screener_live_prices_and_computed_change(client):
     assert round(aapl["change_pct"], 2) == 1.71
     assert aapl["sentiment_buy_pct"] is None  # not exposed by the API
     assert rows["NOPE"]["price"] is None
+
+
+def test_price_falls_back_to_current_rate(client):
+    tc, _ = client
+    tc.post("/screener/refresh-etoro-catalog")
+    rows = {x["ticker"]: x for x in tc.get("/screener/sp500").json()}
+    msft = rows["MSFT"]
+    assert msft["price"] == 400.0          # from catalog currentRate (no /rates entry)
+    assert msft["sell"] is None and msft["buy"] is None
+    assert round(msft["change_pct"], 2) == 1.01   # (400-396)/396*100
 
 
 def test_refresh_uses_no_fields_param(client):

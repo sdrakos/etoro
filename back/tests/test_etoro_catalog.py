@@ -31,3 +31,11 @@ def test_count(tmp_path):
     assert cat.count() == 0
     cat.upsert([{"symbol": "AAPL", "instrument_id": 1}])
     assert cat.count() == 1
+
+
+def test_upsert_stores_current_rate(tmp_path):
+    from data_cache.etoro_catalog import EtoroCatalog
+    cat = EtoroCatalog(tmp_path / "cat.db")
+    cat.upsert([{"symbol": "AAPL", "instrument_id": 1001, "current_rate": 310.26}])
+    got = cat.get_many(["AAPL"])
+    assert got["AAPL"]["current_rate"] == 310.26

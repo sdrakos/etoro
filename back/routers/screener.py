@@ -90,6 +90,7 @@ def refresh_catalog() -> dict:
             "instrument_id": it.get("instrumentId"),
             "exchange_name": it.get("exchangeName"),
             "display_name": it.get("displayName"),
+            "current_rate": it.get("currentRate"),
         } for it in items]
         total_upserted += catalog.upsert(rows)
         if len(items) < page_size:
@@ -160,6 +161,8 @@ def _build_rows(universe: str) -> list[ScreenerRow]:
         md = md_cache.get(ticker)
 
         last = rate.get("lastExecution") if rate else None
+        if last is None and cat:
+            last = cat.get("current_rate")
         prev = clo.get("officialClosingPrice") if clo else None
         change_pct = None
         if last is not None and prev not in (None, 0):
