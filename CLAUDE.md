@@ -4,10 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-`etoro/` is a quantitative trading platform with two shipped components:
+`etoro/` is **one** quantitative-trading project with four components that share the same
+`back/.env` secrets and data conventions:
 
-- **`back/`** — FastAPI wrapper over the Massive.com (Polygon.io rebrand) REST API. 104 endpoints across 9 routers. Used directly via HTTP or imported by other tools.
-- **`trader/`** — Phase 1 Python backtesting framework on backtrader. Strategy-agnostic: adding a new strategy is dropping one file under `trader/strategies/`.
+- **`back/`** — FastAPI layer. (a) Wrapper over the Massive.com (Polygon.io rebrand) REST API, 104 endpoints across 9 routers; (b) the eToro Public API integration (`back/etoro_api/` typed client + vault, `back/routers/etoro/` proxy/social/portfolio/order routers) for the user's real eToro account. Used directly via HTTP or imported by other tools.
+- **`trader/`** — Phase 1 Python backtesting framework on backtrader. Strategy-agnostic: adding a new strategy is dropping one file under `trader/strategies/`. Default data source is Yahoo (keyless); Massive optional via `--source`.
+- **`paper1_RL/`** — Research component: the **Differential Entropic Reward (DER)** paper (`der_paper_full.tex/.pdf`) plus its reproducibility code. Includes the signal-engine + DER-risk-layer alpha experiments (PEAD, sector-neutral momentum, VIX-driven θ) validated on Yahoo 2015–2024 — see `docs/superpowers/specs|plans/2026-06-03-der-alpha-signal-engine*`.
+- **`paper2_RL/`** — follow-on research (in progress).
 
 Phase status, layout, and end-user CLI examples live in `README.md` — don't duplicate them here.
 
@@ -24,6 +27,8 @@ Phase status, layout, and end-user CLI examples live in `README.md` — don't du
 The single source of truth for `MASSIVE_KEY` is `back/.env`. `trader/config.py` reads it from there — **never duplicate the key** into a second `.env`. The repo's `.gitignore` excludes all `.env` files; `back/.env.example` is the committed template.
 
 The key is **lazy**: `config.py` loads `MASSIVE_KEY` at import without raising, and `config.get_massive_key()` raises `RuntimeError` only when something actually needs it (i.e. `source="massive"`). This lets the whole framework run keyless on the default Yahoo source. Don't reintroduce an import-time raise.
+
+`back/.env` is the single store for **all** project secrets: `MASSIVE_KEY`, the eToro keys (`ETORO_PUBLIC_KEY`, `ETORO_PRIVATE_KEY`), and `GIT_HUB_TOKEN` (used for pushes). Never duplicate or hard-code these elsewhere; `back/.env.example` is the committed template.
 
 ### Adding a new strategy
 
