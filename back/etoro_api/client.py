@@ -5,7 +5,7 @@ from typing import Any, Optional
 import httpx
 from fastapi import HTTPException
 
-BASE_URL = "https://public-api.etoro.com/api/v1"
+BASE_URL = "https://public-api.etoro.com"
 # eToro is behind Cloudflare, which 403s the default httpx/urllib UA (error 1010).
 _USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) QUANTIQ/1.0"
 

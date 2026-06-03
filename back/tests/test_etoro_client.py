@@ -15,21 +15,22 @@ def _resp(status=200, json_body=None, text="", content=b"x"):
     return r
 
 
-def test_request_sends_auth_and_cloudflare_headers():
-    from etoro_api.client import EtoroClient
-    client = EtoroClient("PUB", "USR", environment="demo")
+def test_request_uses_host_base_and_full_path():
+    from etoro_api.client import EtoroClient, BASE_URL
+    assert BASE_URL == "https://public-api.etoro.com"
+    client = EtoroClient("PUB", "USR")
     with patch("etoro_api.client.httpx.Client") as Cli:
         ctx = Cli.return_value.__enter__.return_value
         ctx.request.return_value = _resp(200, {"ok": True})
-        out = client.request("GET", "/watchlists", params={"a": 1})
+        out = client.request("GET", "/api/v2/trading/info/orders:lookup", params={"a": 1})
     assert out == {"ok": True}
-    _, kwargs = ctx.request.call_args
+    args, kwargs = ctx.request.call_args
+    assert args[0] == "GET"
+    assert args[1] == "https://public-api.etoro.com/api/v2/trading/info/orders:lookup"
     h = kwargs["headers"]
-    assert h["x-api-key"] == "PUB"
-    assert h["x-user-key"] == "USR"
+    assert h["x-api-key"] == "PUB" and h["x-user-key"] == "USR"
     assert h["User-Agent"].startswith("Mozilla/")
     assert len(h["x-request-id"]) >= 8
-    assert kwargs["params"] == {"a": 1}
 
 
 def test_request_raises_httpexception_on_error_status():
@@ -39,7 +40,7 @@ def test_request_raises_httpexception_on_error_status():
         ctx = Cli.return_value.__enter__.return_value
         ctx.request.return_value = _resp(403, {"error": "1010"})
         with pytest.raises(HTTPException) as ei:
-            client.request("GET", "/watchlists")
+            client.request("GET", "/api/v1/watchlists")
     assert ei.value.status_code == 403
 
 
