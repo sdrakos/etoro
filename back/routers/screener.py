@@ -91,6 +91,7 @@ def refresh_catalog() -> dict:
             "exchange_name": it.get("exchangeName"),
             "display_name": it.get("displayName"),
             "current_rate": it.get("currentRate"),
+            "asset_class": it.get("assetClass"),
         } for it in items]
         total_upserted += catalog.upsert(rows)
         if len(items) < page_size:

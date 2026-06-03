@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS instruments (
     sentiment_buy_pct  REAL,
     is_open            INTEGER,
     current_rate       REAL,
+    asset_class        TEXT,
     updated_at         REAL
 );
 CREATE INDEX IF NOT EXISTS idx_instruments_id ON instruments(instrument_id);
@@ -41,7 +42,8 @@ class EtoroCatalog:
             payload.append((
                 sym, int(r["instrument_id"]), r.get("exchange_id"), r.get("exchange_name"),
                 r.get("display_name"), r.get("type_id"), r.get("daily_change"),
-                r.get("sentiment_buy_pct"), r.get("is_open"), r.get("current_rate"), now,
+                r.get("sentiment_buy_pct"), r.get("is_open"), r.get("current_rate"),
+                r.get("asset_class"), now,
             ))
         if not payload:
             return 0
@@ -49,14 +51,17 @@ class EtoroCatalog:
             conn.executemany("""
                 INSERT INTO instruments
                     (symbol, instrument_id, exchange_id, exchange_name, display_name,
-                     type_id, daily_change, sentiment_buy_pct, is_open, current_rate, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     type_id, daily_change, sentiment_buy_pct, is_open, current_rate,
+                     asset_class, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(symbol) DO UPDATE SET
                     instrument_id=excluded.instrument_id, exchange_id=excluded.exchange_id,
                     exchange_name=excluded.exchange_name, display_name=excluded.display_name,
                     type_id=excluded.type_id, daily_change=excluded.daily_change,
                     sentiment_buy_pct=excluded.sentiment_buy_pct, is_open=excluded.is_open,
-                    current_rate=excluded.current_rate, updated_at=excluded.updated_at
+                    current_rate=excluded.current_rate, asset_class=excluded.asset_class,
+                    updated_at=excluded.updated_at
+                WHERE excluded.asset_class = 'Stocks' OR instruments.asset_class IS NOT 'Stocks'
             """, payload)
             return len(payload)
 
