@@ -16,34 +16,25 @@ router = APIRouter(prefix="/etoro", tags=["etoro:core"])
 
 @router.get("/search")
 def search(symbol: str, client: EtoroClient = Depends(get_etoro_client)):
-    """Search by symbol/text and enrich the matching instrument ids with names."""
-    res = client.request("GET", "/api/v1/market-data/search",
-                         params={"searchText": symbol, "fields": "instrumentId"})
-    items = res.get("items", []) if isinstance(res, dict) else []
-    ids = [str(i["instrumentId"]) for i in items if i.get("instrumentId") is not None]
-    if not ids:
-        return {"items": []}
-    meta = client.request("GET", "/api/v1/market-data/instruments",
-                          params={"instrumentIds": ",".join(ids)})
-    rows = meta.get("instrumentDisplayDatas", []) if isinstance(meta, dict) else []
-    return {"items": [{
-        "instrumentId": r.get("instrumentID"),
-        "name": r.get("instrumentDisplayName"),
-        "typeId": r.get("instrumentTypeID"),
-        "exchangeId": r.get("exchangeID"),
-    } for r in rows]}
+    """Look up an instrument by its exact symbol (e.g. BTC, AAPL, TSLA).
+
+    Uses the Asset Explorer endpoint, which returns the instrument with its
+    display name, asset class, exchange, and (for crypto) market data.
+    """
+    return client.request("GET", f"/api/v1/instruments/{symbol}")
 
 
 @router.get("/instruments")
 def instruments(ids: str, client: EtoroClient = Depends(get_etoro_client)):
+    # eToro's instruments endpoint wants repeated params, not a comma list.
     return client.request("GET", "/api/v1/market-data/instruments",
-                          params={"instrumentIds": ids})
+                          params={"instrumentIds": ids.split(",")})
 
 
 @router.get("/rates")
 def rates(ids: str, client: EtoroClient = Depends(get_etoro_client)):
     return client.request("GET", "/api/v1/market-data/instruments/rates",
-                          params={"instrumentIds": ids})
+                          params={"instrumentIds": ids.split(",")})
 
 
 @router.get("/candles/{instrument_id}")

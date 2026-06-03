@@ -21,23 +21,29 @@ def make_client():
     return _make
 
 
-def test_search_enriches_with_names(make_client):
-    search_res = {"items": [{"instrumentId": 100000}, {"instrumentId": 100134}]}
-    meta_res = {"instrumentDisplayDatas": [
-        {"instrumentID": 100000, "instrumentDisplayName": "Bitcoin",
-         "instrumentTypeID": 10, "exchangeID": 8},
-        {"instrumentID": 100134, "instrumentDisplayName": "Bitcoin Cash",
-         "instrumentTypeID": 10, "exchangeID": 8}]}
-    c, fake = make_client(side_effect=[search_res, meta_res])
+def test_search_looks_up_instrument_by_symbol(make_client):
+    c, fake = make_client(return_value={
+        "instrumentId": 100000, "symbol": "BTC", "displayName": "Bitcoin",
+        "assetClass": "Crypto"})
     r = c.get("/etoro/search", params={"symbol": "BTC"}, headers={"X-User-Id": "u1"})
     assert r.status_code == 200
-    items = r.json()["items"]
-    assert items[0] == {"instrumentId": 100000, "name": "Bitcoin", "typeId": 10, "exchangeId": 8}
-    first, second = fake.request.call_args_list
-    assert first.args == ("GET", "/api/v1/market-data/search")
-    assert first.kwargs["params"] == {"searchText": "BTC", "fields": "instrumentId"}
-    assert second.args == ("GET", "/api/v1/market-data/instruments")
-    assert second.kwargs["params"] == {"instrumentIds": "100000,100134"}
+    method, path = fake.request.call_args.args
+    assert method == "GET" and path == "/api/v1/instruments/BTC"
+    assert r.json()["displayName"] == "Bitcoin"
+
+
+def test_instruments_uses_repeated_params(make_client):
+    c, fake = make_client(return_value={"instrumentDisplayDatas": []})
+    c.get("/etoro/instruments", params={"ids": "100000,100681"}, headers={"X-User-Id": "u1"})
+    assert fake.request.call_args.args[1] == "/api/v1/market-data/instruments"
+    assert fake.request.call_args.kwargs["params"] == {"instrumentIds": ["100000", "100681"]}
+
+
+def test_rates_uses_repeated_params(make_client):
+    c, fake = make_client(return_value={"rates": []})
+    c.get("/etoro/rates", params={"ids": "100000"}, headers={"X-User-Id": "u1"})
+    assert fake.request.call_args.args[1] == "/api/v1/market-data/instruments/rates"
+    assert fake.request.call_args.kwargs["params"] == {"instrumentIds": ["100000"]}
 
 
 def test_candles_builds_path(make_client):
