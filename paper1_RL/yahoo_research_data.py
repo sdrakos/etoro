@@ -37,7 +37,10 @@ def _fetch_all() -> dict:
     sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
     from trader.data.sources.yahoo import fetch_bars
     from datetime import date
-    from . import universe as U
+    try:                                                 # package context (tests)
+        from . import universe as U
+    except ImportError:                                  # top-level script context (experiments)
+        import universe as U
 
     start = date.fromisoformat(U.START); end = date.fromisoformat(U.END)
     # 1) bars -> close/vol matrices σε κοινο date index
