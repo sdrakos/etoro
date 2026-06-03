@@ -19,6 +19,7 @@ Phase status, layout, and end-user CLI examples live in `README.md` — don't du
 - **No `Co-Authored-By` footer in commit messages**. Use a clean `git commit -m "..."` with no trailer.
 - **Non-technical end users are the audience for the product**. Hide complexity behind small public APIs. Don't bolt on defensive code paths "just in case."
 - Conversations are Greek/Greeklish; code is English. Mirror what the user uses.
+- **Use Opus 4.8 only** — for this main session *and* every dispatched subagent (pass `model: opus` to the Agent tool). Don't downgrade subagents to Sonnet/Haiku.
 
 ## Critical conventions
 
