@@ -1,34 +1,29 @@
-"""Screener backend tests — eToro price source (mocked). No real API calls."""
-from unittest.mock import MagicMock
+"""Screener backend tests — eToro price source (mocked, real API shapes)."""
 import pytest
 from fastapi.testclient import TestClient
 
 
-def _discover_page(items, page, page_size, total):
-    return {"page": page, "pageSize": page_size, "totalItems": total, "items": items}
-
-
 class FakeEtoro:
-    """Routes EtoroClient.request by path: discover (paged) + rates (by ids)."""
-    def __init__(self, instruments, rates):
-        self._instruments = instruments  # list of discover item dicts
-        self._rates = rates              # {instrumentID: {bid,ask,lastExecution}}
+    """Routes EtoroClient.request by path: discover (paged, lean), rates, closing-price."""
+    def __init__(self, instruments, rates, closing):
+        self._instruments = instruments  # lean discover items
+        self._rates = rates              # {id: {bid,ask,lastExecution}}
+        self._closing = closing          # {id: {officialClosingPrice, isMarketOpen}}
         self.calls = []
 
     def request(self, method, path, *, params=None, json=None):
         self.calls.append((method, path, params))
         if path == "/api/v1/instruments/discover":
-            page = int(params.get("page", 1))
-            size = int(params.get("pageSize", 1000))
+            page = int(params.get("page", 1)); size = int(params.get("pageSize", 1000))
             start = (page - 1) * size
             items = self._instruments[start:start + size]
-            return _discover_page(items, page, size, len(self._instruments))
+            return {"page": page, "pageSize": size, "totalItems": len(self._instruments), "items": items}
         if path == "/api/v1/market-data/instruments/rates":
-            ids = params["instrumentIds"]
-            ids = ids if isinstance(ids, list) else [ids]
-            rates = [dict(instrumentID=int(i), **self._rates[int(i)])
-                     for i in ids if int(i) in self._rates]
-            return {"rates": rates}
+            ids = params["instrumentIds"]; ids = ids if isinstance(ids, list) else [ids]
+            return {"rates": [dict(instrumentID=int(i), **self._rates[int(i)])
+                              for i in ids if int(i) in self._rates]}
+        if path == "/api/v1/market-data/instruments/history/closing-price":
+            return [dict(instrumentId=i, **c) for i, c in self._closing.items()]
         raise AssertionError(f"unexpected path {path}")
 
 
@@ -36,20 +31,17 @@ class FakeEtoro:
 def client(tmp_path, monkeypatch):
     from routers import screener
     screener._snapshot_memo.clear()
-
     instruments = [
-        {"instrumentId": 1001, "symbol": "AAPL", "displayname": "Apple",
-         "internalExchangeName": "NASDAQ", "exchangeID": 4,
-         "dailyPriceChange": 1.5, "buyHoldingPct": 82.0, "isExchangeOpen": True},
-        {"instrumentId": 1002, "symbol": "MSFT", "displayname": "Microsoft",
-         "internalExchangeName": "NASDAQ", "exchangeID": 4,
-         "dailyPriceChange": -0.7, "buyHoldingPct": 65.0, "isExchangeOpen": True},
+        {"instrumentId": 1001, "symbol": "AAPL", "displayName": "Apple",
+         "assetClass": "Stocks", "exchangeName": "Nasdaq", "currentRate": 213.6},
+        {"instrumentId": 1002, "symbol": "MSFT", "displayName": "Microsoft",
+         "assetClass": "Stocks", "exchangeName": "Nasdaq", "currentRate": 401.1},
     ]
-    rates = {
-        1001: {"bid": 213.5, "ask": 213.7, "lastExecution": 213.6},
-        1002: {"bid": 401.0, "ask": 401.2, "lastExecution": 401.1},
-    }
-    fake = FakeEtoro(instruments, rates)
+    rates = {1001: {"bid": 213.5, "ask": 213.7, "lastExecution": 213.6},
+             1002: {"bid": 401.0, "ask": 401.2, "lastExecution": 401.1}}
+    closing = {1001: {"officialClosingPrice": 210.0, "isMarketOpen": True},
+               1002: {"officialClosingPrice": 405.0, "isMarketOpen": True}}
+    fake = FakeEtoro(instruments, rates, closing)
     monkeypatch.setattr(screener, "get_server_client", lambda: fake)
     monkeypatch.setattr(screener, "CATALOG_DB", tmp_path / "cat.db")
     monkeypatch.setattr(screener, "METADATA_DB", tmp_path / "meta.db")
@@ -58,7 +50,6 @@ def client(tmp_path, monkeypatch):
         {"ticker": "MSFT", "name": "Microsoft Corp.", "sector": "Tech"},
         {"ticker": "NOPE", "name": "Unmapped Co.", "sector": "X"},
     ])
-
     from main import app
     return TestClient(app), fake
 
@@ -70,24 +61,25 @@ def test_refresh_catalog_populates(client):
     assert r.json()["instruments"] == 2
 
 
-def test_screener_uses_live_etoro_prices(client):
+def test_screener_live_prices_and_computed_change(client):
     tc, _ = client
     tc.post("/screener/refresh-etoro-catalog")
-    r = tc.get("/screener/sp500")
-    assert r.status_code == 200
-    rows = {row["ticker"]: row for row in r.json()}
+    rows = {x["ticker"]: x for x in tc.get("/screener/sp500").json()}
     aapl = rows["AAPL"]
-    assert aapl["price"] == 213.6
-    assert aapl["sell"] == 213.5
-    assert aapl["buy"] == 213.7
-    assert aapl["change_pct"] == 1.5
-    assert aapl["sentiment_buy_pct"] == 82.0
-    assert aapl["exchange"] == "NASDAQ"
-    assert aapl["instrument_id"] == 1001
+    assert aapl["price"] == 213.6 and aapl["sell"] == 213.5 and aapl["buy"] == 213.7
+    assert aapl["exchange"] == "Nasdaq" and aapl["instrument_id"] == 1001
+    assert aapl["is_open"] is True
+    # change% = (213.6 - 210.0)/210.0*100 = 1.714...
+    assert round(aapl["change_pct"], 2) == 1.71
+    assert aapl["sentiment_buy_pct"] is None  # not exposed by the API
     assert rows["NOPE"]["price"] is None
 
 
-def test_screener_sp500_ok(client):
-    tc, _ = client
-    r = tc.get("/screener/sp500")
-    assert r.status_code == 200
+def test_refresh_uses_no_fields_param(client):
+    """discover must be called WITHOUT a `fields` param (eToro 500s otherwise)."""
+    tc, fake = client
+    tc.post("/screener/refresh-etoro-catalog")
+    discover_calls = [c for c in fake.calls if c[1] == "/api/v1/instruments/discover"]
+    assert discover_calls
+    for _, _, params in discover_calls:
+        assert "fields" not in params

@@ -75,28 +75,21 @@ def _load_universe(universe: str) -> list[dict]:
 
 
 def refresh_catalog() -> dict:
-    """Page /instruments/discover into the catalog cache. Returns counts."""
+    """Page /instruments/discover (lean items) into the catalog cache. Returns counts."""
     client = get_server_client()
     catalog = EtoroCatalog(CATALOG_DB)
-    fields = ("instrumentId,symbol,displayname,exchangeID,internalExchangeName,"
-              "dailyPriceChange,buyHoldingPct,isExchangeOpen")
     page, page_size, total_upserted = 1, 1000, 0
     while page <= 50:
         res = client.request("GET", "/api/v1/instruments/discover",
-                             params={"fields": fields, "pageSize": page_size, "page": page})
+                             params={"pageSize": page_size, "page": page})
         items = res.get("items", []) if isinstance(res, dict) else []
         if not items:
             break
         rows = [{
             "symbol": it.get("symbol"),
             "instrument_id": it.get("instrumentId"),
-            "exchange_id": it.get("exchangeID"),
-            "exchange_name": it.get("internalExchangeName"),
-            "display_name": it.get("displayname"),
-            "type_id": it.get("instrumentTypeID"),
-            "daily_change": it.get("dailyPriceChange"),
-            "sentiment_buy_pct": it.get("buyHoldingPct"),
-            "is_open": 1 if it.get("isExchangeOpen") else 0,
+            "exchange_name": it.get("exchangeName"),
+            "display_name": it.get("displayName"),
         } for it in items]
         total_upserted += catalog.upsert(rows)
         if len(items) < page_size:
@@ -130,6 +123,22 @@ def _fetch_rates(client, instrument_ids: list[int]) -> dict[int, dict]:
     return out
 
 
+def _fetch_closing(client) -> dict[int, dict]:
+    """Bulk previous-close + market-open status for all instruments (memoized)."""
+    now = time.monotonic()
+    cached = _snapshot_memo.get("closing")
+    if cached and (now - cached[0]) < SNAPSHOT_TTL_S:
+        return cached[1]
+    res = client.request("GET", "/api/v1/market-data/instruments/history/closing-price")
+    out: dict[int, dict] = {}
+    for c in (res if isinstance(res, list) else []):
+        iid = c.get("instrumentId")
+        if iid is not None:
+            out[int(iid)] = c
+    _snapshot_memo["closing"] = (now, out)
+    return out
+
+
 def _build_rows(universe: str) -> list[ScreenerRow]:
     tickers = _load_universe(universe)
     catalog = EtoroCatalog(CATALOG_DB)
@@ -138,24 +147,34 @@ def _build_rows(universe: str) -> list[ScreenerRow]:
     ids = [mapped[t["ticker"]]["instrument_id"] for t in tickers if t["ticker"] in mapped]
     client = get_server_client()
     rates = _fetch_rates(client, ids) if ids else {}
+    closing = _fetch_closing(client) if ids else {}
 
     md_cache = MetadataCache(METADATA_DB)
     rows: list[ScreenerRow] = []
     for t in tickers:
         ticker = t["ticker"]
         cat = mapped.get(ticker)
-        rate = rates.get(cat["instrument_id"]) if cat else None
+        iid = cat["instrument_id"] if cat else None
+        rate = rates.get(iid) if iid is not None else None
+        clo = closing.get(iid) if iid is not None else None
         md = md_cache.get(ticker)
+
+        last = rate.get("lastExecution") if rate else None
+        prev = clo.get("officialClosingPrice") if clo else None
+        change_pct = None
+        if last is not None and prev not in (None, 0):
+            change_pct = (last - prev) / prev * 100
+
         rows.append(ScreenerRow(
             ticker=ticker, name=t["name"], sector=t["sector"],
-            instrument_id=cat["instrument_id"] if cat else None,
+            instrument_id=iid,
             exchange=cat.get("exchange_name") if cat else None,
-            price=rate.get("lastExecution") if rate else None,
+            price=last,
             sell=rate.get("bid") if rate else None,
             buy=rate.get("ask") if rate else None,
-            change_pct=cat.get("daily_change") if cat else None,
-            sentiment_buy_pct=cat.get("sentiment_buy_pct") if cat else None,
-            is_open=bool(cat["is_open"]) if cat and cat.get("is_open") is not None else None,
+            change_pct=change_pct,
+            sentiment_buy_pct=None,
+            is_open=clo.get("isMarketOpen") if clo else None,
             volume=None,
             market_cap=md.get("market_cap") if md else None,
             pe_ratio=md.get("pe_ratio") if md else None,
