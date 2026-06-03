@@ -1,46 +1,54 @@
-"""GET /screener/{universe} — sp500 | nasdaq100 | combined.
+"""GET /screener/{universe} — sp500 | nasdaq100 | combined, priced from eToro.
 
-Uses get_grouped_daily_aggs (free tier) × 2 days to compute price + change_pct.
-Metadata (market_cap, P/E) is best-effort: on Massive Basic tier the
-list_ratios endpoint returns 401, so those fields stay null. Upgrade to
-Starter+ to populate them.
+Live bid/ask come from eToro /rates; daily change %, sentiment, and exchange come
+from a cached eToro instrument catalog (refresh via POST /screener/refresh-etoro-catalog).
+market_cap / pe_ratio remain best-effort from the Massive metadata cache.
 """
 from __future__ import annotations
 import json
 import time
-from datetime import date as _date, timedelta
 from functools import lru_cache
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from config import get_client as _real_get_client
+from etoro_api.server import get_server_client
+from data_cache.etoro_catalog import EtoroCatalog
 from data_cache.metadata_cache import MetadataCache
 
 
 def get_client():
-    """Indirection so tests can monkeypatch routers.screener.get_client."""
+    """Indirection so tests can monkeypatch routers.screener.get_client (Massive metadata)."""
     return _real_get_client()
+
 
 router = APIRouter(prefix="/screener", tags=["screener"])
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 METADATA_DB = Path.home() / ".etoro" / "screener_metadata.db"
+CATALOG_DB = Path.home() / ".etoro" / "etoro_catalog.db"
 METADATA_DB.parent.mkdir(parents=True, exist_ok=True)
 
-# Snapshot memo cache: shared across universes, 10s TTL
-_snapshot_memo: dict[str, tuple[float, object]] = {}
+_snapshot_memo: dict[str, tuple[float, dict]] = {}
 SNAPSHOT_TTL_S = 10
+RATES_BATCH = 100
 
 
 class ScreenerRow(BaseModel):
     ticker: str
     name: str
     sector: str
+    instrument_id: Optional[int] = None
+    exchange: Optional[str] = None
     price: Optional[float] = None
+    sell: Optional[float] = None
+    buy: Optional[float] = None
     change_pct: Optional[float] = None
+    sentiment_buy_pct: Optional[float] = None
+    is_open: Optional[bool] = None
     volume: Optional[float] = None
     market_cap: Optional[float] = None
     pe_ratio: Optional[float] = None
@@ -66,121 +74,104 @@ def _load_universe(universe: str) -> list[dict]:
     raise HTTPException(404, f"Unknown universe: {universe}")
 
 
-def _get_two_recent_days(client) -> tuple[dict, dict]:
-    """Find most recent 2 US business days with data.
+def refresh_catalog() -> dict:
+    """Page /instruments/discover into the catalog cache. Returns counts."""
+    client = get_server_client()
+    catalog = EtoroCatalog(CATALOG_DB)
+    fields = ("instrumentId,symbol,displayname,exchangeID,internalExchangeName,"
+              "dailyPriceChange,buyHoldingPct,isExchangeOpen")
+    page, page_size, total_upserted = 1, 1000, 0
+    while page <= 50:
+        res = client.request("GET", "/api/v1/instruments/discover",
+                             params={"fields": fields, "pageSize": page_size, "page": page})
+        items = res.get("items", []) if isinstance(res, dict) else []
+        if not items:
+            break
+        rows = [{
+            "symbol": it.get("symbol"),
+            "instrument_id": it.get("instrumentId"),
+            "exchange_id": it.get("exchangeID"),
+            "exchange_name": it.get("internalExchangeName"),
+            "display_name": it.get("displayname"),
+            "type_id": it.get("instrumentTypeID"),
+            "daily_change": it.get("dailyPriceChange"),
+            "sentiment_buy_pct": it.get("buyHoldingPct"),
+            "is_open": 1 if it.get("isExchangeOpen") else 0,
+        } for it in items]
+        total_upserted += catalog.upsert(rows)
+        if len(items) < page_size:
+            break
+        page += 1
+    return {"instruments": total_upserted}
 
-    Returns (today_map, prev_map) where each is {ticker: agg} with .close
-    and .volume attributes. Empty dicts if Massive returns nothing for the
-    last ~10 days (holidays, weekends, or API error).
 
-    Memoised 10s server-side so back-to-back screener requests reuse it.
-    Uses get_grouped_daily_aggs which is included in Massive Basic (free).
-    """
-    cache_key = "grouped_daily_pair"
+@router.post("/refresh-etoro-catalog")
+def refresh_etoro_catalog():
+    return refresh_catalog()
+
+
+def _fetch_rates(client, instrument_ids: list[int]) -> dict[int, dict]:
+    """Bulk live rates, batched (eToro wants repeated instrumentIds params)."""
+    cache_key = "rates:" + ",".join(map(str, instrument_ids))
     now = time.monotonic()
     cached = _snapshot_memo.get(cache_key)
     if cached and (now - cached[0]) < SNAPSHOT_TTL_S:
-        return cached[1]  # type: ignore[return-value]
-
-    days_found: list[dict] = []
-    d = _date.today() - timedelta(days=1)
-    attempts = 0
-    while len(days_found) < 2 and attempts < 10:
-        if d.weekday() < 5:  # Mon-Fri (skip weekends)
-            try:
-                aggs = client.get_grouped_daily_aggs(d.isoformat())
-                aggs_list = list(aggs) if aggs else []
-                if aggs_list:
-                    days_found.append({a.ticker: a for a in aggs_list})
-            except Exception:
-                pass
-        d -= timedelta(days=1)
-        attempts += 1
-
-    if len(days_found) >= 2:
-        result = (days_found[0], days_found[1])
-    elif len(days_found) == 1:
-        result = (days_found[0], {})
-    else:
-        result = ({}, {})
-
-    _snapshot_memo[cache_key] = (now, result)
-    return result
+        return cached[1]
+    out: dict[int, dict] = {}
+    for i in range(0, len(instrument_ids), RATES_BATCH):
+        batch = [str(x) for x in instrument_ids[i:i + RATES_BATCH]]
+        res = client.request("GET", "/api/v1/market-data/instruments/rates",
+                             params={"instrumentIds": batch})
+        for r in (res.get("rates", []) if isinstance(res, dict) else []):
+            iid = r.get("instrumentID")
+            if iid is not None:
+                out[int(iid)] = r
+    _snapshot_memo[cache_key] = (now, out)
+    return out
 
 
-def _refresh_metadata(client, cache: MetadataCache, ticker: str,
-                     skip_flag: list[bool]) -> dict:
-    """Fetch market_cap + pe_ratio. Circuit-breaks on auth errors.
+def _build_rows(universe: str) -> list[ScreenerRow]:
+    tickers = _load_universe(universe)
+    catalog = EtoroCatalog(CATALOG_DB)
+    mapped = catalog.get_many([t["ticker"] for t in tickers])
 
-    `skip_flag` is a single-element list used as a mutable bool across the
-    whole request — once we see a 401/403/NOT_AUTHORIZED on metadata calls,
-    we stop hammering the API for the rest of this request.
-    """
-    if skip_flag[0]:
-        return {"market_cap": None, "pe_ratio": None}
+    ids = [mapped[t["ticker"]]["instrument_id"] for t in tickers if t["ticker"] in mapped]
+    client = get_server_client()
+    rates = _fetch_rates(client, ids) if ids else {}
 
-    market_cap = None
-    pe_ratio = None
-    auth_error_markers = ("401", "403", "NOT_AUTHORIZED", "not entitled")
+    md_cache = MetadataCache(METADATA_DB)
+    rows: list[ScreenerRow] = []
+    for t in tickers:
+        ticker = t["ticker"]
+        cat = mapped.get(ticker)
+        rate = rates.get(cat["instrument_id"]) if cat else None
+        md = md_cache.get(ticker)
+        rows.append(ScreenerRow(
+            ticker=ticker, name=t["name"], sector=t["sector"],
+            instrument_id=cat["instrument_id"] if cat else None,
+            exchange=cat.get("exchange_name") if cat else None,
+            price=rate.get("lastExecution") if rate else None,
+            sell=rate.get("bid") if rate else None,
+            buy=rate.get("ask") if rate else None,
+            change_pct=cat.get("daily_change") if cat else None,
+            sentiment_buy_pct=cat.get("sentiment_buy_pct") if cat else None,
+            is_open=bool(cat["is_open"]) if cat and cat.get("is_open") is not None else None,
+            volume=None,
+            market_cap=md.get("market_cap") if md else None,
+            pe_ratio=md.get("pe_ratio") if md else None,
+        ))
+    return rows
 
-    try:
-        details = client.get_ticker_details(ticker)
-        market_cap = getattr(details, "market_cap", None)
-    except Exception as e:
-        if any(m in str(e) for m in auth_error_markers):
-            skip_flag[0] = True
 
-    if not skip_flag[0]:
-        try:
-            ratios = next(iter(client.list_ratios(ticker=ticker)), None)
-            pe_ratio = getattr(ratios, "price_to_earnings_ratio", None) if ratios else None
-        except Exception as e:
-            if any(m in str(e) for m in auth_error_markers):
-                skip_flag[0] = True
-
-    cache.put(ticker, market_cap, pe_ratio)
-    return {"market_cap": market_cap, "pe_ratio": pe_ratio}
+@router.get("/movers", response_model=list[ScreenerRow])
+def movers(universe: str = Query("combined"),
+           direction: str = Query("gainers"),
+           limit: int = Query(20)):
+    rows = [r for r in _build_rows(universe) if r.change_pct is not None]
+    rows.sort(key=lambda r: r.change_pct, reverse=(direction != "losers"))
+    return rows[:max(0, limit)]
 
 
 @router.get("/{universe}", response_model=list[ScreenerRow])
 def screener(universe: str):
-    """Return the screener rows for a universe.
-
-    market_cap and pe_ratio come from the cache only — they are NOT refreshed
-    inline here because Massive Basic tier rate-limits metadata calls to 5/min
-    and we have ~500 tickers. Use POST /screener/refresh-metadata to populate
-    the cache out-of-band (rolling refresh, respects rate limits).
-    """
-    client = get_client()
-    tickers = _load_universe(universe)
-    today_map, prev_map = _get_two_recent_days(client)
-    cache = MetadataCache(METADATA_DB)
-
-    rows: list[ScreenerRow] = []
-    for t in tickers:
-        ticker = t["ticker"]
-        today = today_map.get(ticker)
-        prev = prev_map.get(ticker)
-
-        price = getattr(today, "close", None) if today else None
-        volume = getattr(today, "volume", None) if today else None
-        prev_close = getattr(prev, "close", None) if prev else None
-
-        change_pct: Optional[float] = None
-        if price is not None and prev_close is not None and prev_close > 0:
-            change_pct = ((price - prev_close) / prev_close) * 100
-
-        # Cached-only metadata — no inline API calls. None if not yet cached.
-        cached_md = cache.get(ticker)
-
-        rows.append(ScreenerRow(
-            ticker=ticker,
-            name=t["name"],
-            sector=t["sector"],
-            price=price,
-            change_pct=change_pct,
-            volume=volume,
-            market_cap=cached_md.get("market_cap") if cached_md else None,
-            pe_ratio=cached_md.get("pe_ratio") if cached_md else None,
-        ))
-    return rows
+    return _build_rows(universe)
