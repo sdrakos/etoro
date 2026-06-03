@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python .claude/log_conversation.py",
+            "timeout": 30,
+            "statusMessage": "Saving conversation to claude.db"
+          }
+        ]
+      }
+    ]
+  }
+}
