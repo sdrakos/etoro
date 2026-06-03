@@ -150,8 +150,7 @@ CVaR-PPO (CPPO) at roughly a quarter of the compute and without LLM signals}
 to forecasting skill, and a combined-signal engine wrapped by the DER is the honest
 route to (modest) alpha (Section~\ref{sec:alpha}).
 \end{enumerate}
-All experiments use real S\&P~500 data and are fully reproducible
-(Section~\ref{sec:repro}).
+All experiments use real S\&P~500 data and are fully reproducible.
 
 \section{Related Work}\label{sec:related}
 
@@ -840,21 +839,6 @@ relative to the Differential Sharpe Ratio, while honestly delimiting that it doe
 manufacture predictive signal. The DER is a principled, interpretable,
 single-parameter mechanism for the one thing it demonstrably delivers: control of
 downside risk.
-
-\section*{Reproducibility}\label{sec:repro}
-\addcontentsline{toc}{section}{Reproducibility}
-\texttt{verify\_der\_theory.py} checks claims C1--C6 two ways (seed $2025$, $8/8$ pass).
-\texttt{backtest.py} regenerates Table~\ref{tab:backtest}, Figure~\ref{fig:backtest},
-and the Wilcoxon tests; \texttt{harness.py} runs any single-asset configuration and
-Table~\ref{tab:thetasweep}; \texttt{volume\_signals.py} reproduces the
-information-coefficient and redundancy analysis; \texttt{all\_levers\_v3.py} reproduces
-the cross-sectional results and Figure~\ref{fig:levers}; \texttt{motivating\_example.py}
-reproduces Figure~\ref{fig:motiv}. \texttt{actor\_critic\_der.py} reproduces the
-actor--critic transfer result, and \texttt{ppo\_headtohead.py} with
-\texttt{ppo\_figure.py} reproduce Table~\ref{tab:ppo} and Figure~\ref{fig:ppo}.
-\texttt{ic\_analysis.py} reproduces the Fundamental-Law decomposition
-(Table~\ref{tab:ic}). Data are real S\&P~500 OHLCV (2013--2018), auto-downloaded from
-a public mirror.
 
 \begin{thebibliography}{99}
 \small
