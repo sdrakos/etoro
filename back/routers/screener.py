@@ -35,6 +35,10 @@ METADATA_DB.parent.mkdir(parents=True, exist_ok=True)
 _snapshot_memo: dict[str, tuple[float, dict]] = {}
 SNAPSHOT_TTL_S = 10
 RATES_BATCH = 100
+_CATEGORY_MAP = {
+    "stocks": "Stocks", "crypto": "Crypto", "etf": "ETF",
+    "indices": "Indices", "commodities": "Commodity", "currencies": "Forex",
+}
 _STOCK_CLASSES = {"Stocks", "ETF", "Indices", None}
 
 
@@ -53,6 +57,14 @@ class ScreenerRow(BaseModel):
     volume: Optional[float] = None
     market_cap: Optional[float] = None
     pe_ratio: Optional[float] = None
+
+
+class CategoryPage(BaseModel):
+    items: list[ScreenerRow]
+    total: int
+    page: int
+    pageSize: int
+    category: str
 
 
 @lru_cache(maxsize=4)
@@ -199,6 +211,72 @@ def movers(universe: str = Query("combined"),
     rows = [r for r in _build_rows(universe) if r.change_pct is not None]
     rows.sort(key=lambda r: r.change_pct, reverse=(direction != "losers"))
     return rows[:max(0, limit)]
+
+
+def _enrich_category(rows: list[dict], client, closing: dict, with_rates: bool) -> list[ScreenerRow]:
+    ids = [r["instrument_id"] for r in rows if r.get("instrument_id") is not None]
+    rates = _fetch_rates(client, ids) if (with_rates and ids) else {}
+    out: list[ScreenerRow] = []
+    for r in rows:
+        iid = r.get("instrument_id")
+        rate = rates.get(iid) if iid is not None else None
+        last = (rate.get("lastExecution") if rate else None)
+        if last is None:
+            last = r.get("current_rate")
+        clo = closing.get(iid) if iid is not None else None
+        prev = clo.get("officialClosingPrice") if clo else None
+        change_pct = (last - prev) / prev * 100 if (last is not None and prev not in (None, 0)) else None
+        out.append(ScreenerRow(
+            ticker=r.get("symbol"), name=r.get("display_name") or r.get("symbol"),
+            sector=r.get("asset_class") or "",
+            instrument_id=iid, exchange=r.get("exchange_name"),
+            price=last, sell=rate.get("bid") if rate else None,
+            buy=rate.get("ask") if rate else None, change_pct=change_pct,
+            sentiment_buy_pct=None,
+            is_open=clo.get("isMarketOpen") if clo else None,
+            volume=None, market_cap=None, pe_ratio=None,
+        ))
+    return out
+
+
+@router.get("/category/{category}", response_model=CategoryPage)
+def category_browse(category: str, page: int = Query(1), pageSize: int = Query(50),
+                    sort: str = Query("change"), dir: str = Query("desc"),
+                    q: Optional[str] = Query(None)):
+    asset = _CATEGORY_MAP.get(category.lower())
+    if asset is None:
+        raise HTTPException(404, f"Unknown category: {category}")
+    page = max(1, page)
+    page_size = max(1, min(pageSize, 200))
+    catalog = EtoroCatalog(CATALOG_DB)
+    client = get_server_client()
+    closing = _fetch_closing(client)
+
+    if sort == "name":
+        rows, total = catalog.query(asset, q, "name", page, page_size)
+        items = _enrich_category(rows, client, closing, with_rates=True)
+        return CategoryPage(items=items, total=total, page=page, pageSize=page_size,
+                            category=category.lower())
+
+    all_rows, total = catalog.query(asset, q, "name", 1, 100_000)
+    enriched = _enrich_category(all_rows, client, closing, with_rates=False)
+    keyf = ((lambda x: x.change_pct if x.change_pct is not None else float("-inf"))
+            if sort == "change"
+            else (lambda x: x.price if x.price is not None else float("-inf")))
+    enriched.sort(key=keyf, reverse=(dir != "asc"))
+    start = (page - 1) * page_size
+    page_items = enriched[start:start + page_size]
+    ids = [r.instrument_id for r in page_items if r.instrument_id is not None]
+    rates = _fetch_rates(client, ids) if ids else {}
+    for r in page_items:
+        rate = rates.get(r.instrument_id)
+        if rate:
+            r.sell = rate.get("bid")
+            r.buy = rate.get("ask")
+            if rate.get("lastExecution") is not None:
+                r.price = rate.get("lastExecution")
+    return CategoryPage(items=page_items, total=total, page=page, pageSize=page_size,
+                        category=category.lower())
 
 
 @router.get("/{universe}", response_model=list[ScreenerRow])
