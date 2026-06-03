@@ -62,3 +62,10 @@ build/
 # paper1_RL research data cache
 paper1_RL/universe_cache.npz
 paper1_RL/universe_cache.npz.json
+
+# paper1_RL regenerable data artifacts
+paper1_RL/sp500_5yr.csv
+paper1_RL/close_mat.npy
+paper1_RL/vol_mat.npy
+paper1_RL/ndx_idx.npy
+paper1_RL/backtest_results.csv
