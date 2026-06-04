@@ -35,6 +35,8 @@ METADATA_DB.parent.mkdir(parents=True, exist_ok=True)
 _snapshot_memo: dict[str, tuple[float, dict]] = {}
 SNAPSHOT_TTL_S = 10
 RATES_BATCH = 100
+CATALOG_REFRESH_S = 90
+_last_refresh_ts: Optional[float] = None
 _CATEGORY_MAP = {
     "stocks": "Stocks", "crypto": "Crypto", "etf": "ETF",
     "indices": "Indices", "commodities": "Commodity", "currencies": "Forex",
@@ -278,6 +280,21 @@ def category_browse(category: str, page: int = Query(1), pageSize: int = Query(5
                 r.price = rate.get("lastExecution")
     return CategoryPage(items=page_items, total=total, page=page, pageSize=page_size,
                         category=category.lower())
+
+
+def _refresh_once() -> dict:
+    """One catalog refresh; records the timestamp. Used by the background loop."""
+    global _last_refresh_ts
+    result = refresh_catalog()
+    _last_refresh_ts = time.time()
+    return result
+
+
+@router.get("/catalog-status")
+def catalog_status():
+    cat = EtoroCatalog(CATALOG_DB)
+    age = (time.time() - _last_refresh_ts) if _last_refresh_ts is not None else None
+    return {"instruments": cat.count(), "last_refresh_age_s": age}
 
 
 @router.get("/{universe}", response_model=list[ScreenerRow])
