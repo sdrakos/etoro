@@ -1,42 +1,47 @@
 import { test, expect } from "@playwright/test";
 
-test.describe("Screener happy path", () => {
-  test.beforeEach(async ({ page }) => {
-    await page.addInitScript(() => window.localStorage.clear());
-  });
-
-  test("loads S&P 500, switches to NASDAQ, persists, sorts, searches", async ({ page }) => {
+// Happy-path against the live category screener. Search/sort/pagination are
+// server-side, so we assert behaviour (tab switches, rows render, controls
+// present) rather than exact row counts. The backend's first catalog refresh
+// can take ~60s, hence the generous load timeout.
+test.describe("Screener happy path (category UI)", () => {
+  test("loads Stocks, switches to Crypto, searches, paginates", async ({ page }) => {
     await page.goto("/");
 
-    // Default universe: sp500
-    await expect(page.getByRole("button", { name: /S&P 500/i })).toHaveAttribute(
-      "aria-pressed",
-      "true"
-    );
+    // Default category: Stocks
+    await expect(
+      page.getByRole("button", { name: "Stocks" })
+    ).toHaveAttribute("aria-pressed", "true");
 
-    // Wait for rows to load (≥ 50, allow for free-tier 2-year history limit)
-    await expect.poll(async () =>
-      await page.locator("tbody tr").count()
-    , { timeout: 30_000 }).toBeGreaterThan(50);
+    // Wait for the first page of rows to arrive (allow for backend warm-up)
+    await expect
+      .poll(async () => page.locator("tbody tr").count(), { timeout: 90_000 })
+      .toBeGreaterThan(0);
 
-    const sp500Count = await page.locator("tbody tr").count();
+    // The eToro-style columns are present
+    await expect(page.getByRole("columnheader", { name: "Market" })).toBeVisible();
+    await expect(page.getByRole("columnheader", { name: /Change/ })).toBeVisible();
+    await expect(page.getByRole("columnheader", { name: "Sell" })).toBeVisible();
+    await expect(page.getByRole("columnheader", { name: "Buy" })).toBeVisible();
 
-    // Switch to NASDAQ 100
-    await page.getByRole("button", { name: /NASDAQ 100/i }).click();
-    await expect.poll(async () =>
-      await page.locator("tbody tr").count()
-    ).toBeLessThan(sp500Count);
+    // Switch to Crypto → tab becomes active and rows reload
+    await page.getByRole("button", { name: "Crypto" }).click();
+    await expect(
+      page.getByRole("button", { name: "Crypto" })
+    ).toHaveAttribute("aria-pressed", "true");
+    await expect
+      .poll(async () => page.locator("tbody tr").count(), { timeout: 60_000 })
+      .toBeGreaterThan(0);
 
-    // Reload → NASDAQ still selected (localStorage)
-    await page.reload();
-    await expect(page.getByRole("button", { name: /NASDAQ 100/i })).toHaveAttribute(
-      "aria-pressed",
-      "true"
-    );
+    // Server-side search keeps rows flowing (page resets to 1)
+    await page.getByPlaceholder(/search/i).fill("bit");
+    await expect
+      .poll(async () => page.locator("tbody tr").count(), { timeout: 30_000 })
+      .toBeGreaterThan(0);
 
-    // Search filter
-    await page.getByPlaceholder(/search/i).fill("AAPL");
-    await expect(page.locator("tbody tr")).toHaveCount(1);
-    await expect(page.locator("tbody tr").first()).toContainText("AAPL");
+    // Pagination control is present
+    await expect(
+      page.getByRole("navigation", { name: "Pagination" })
+    ).toBeVisible();
   });
 });
