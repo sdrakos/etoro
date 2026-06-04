@@ -17,6 +17,29 @@ function sentimentTone(pct: number): { bar: string; text: string } {
   return { bar: "bg-accent-blue", text: "text-fg-default" };
 }
 
+/** % of traders buying, as a tinted mini-bar + label (or an em dash when unknown). */
+function SentimentGauge({ pct }: { pct: number | null | undefined }) {
+  if (pct === null || pct === undefined) return <span className="text-fg-muted">—</span>;
+  const clamped = Math.max(0, Math.min(100, pct));
+  const tone = sentimentTone(clamped);
+  return (
+    <span className="inline-flex items-center gap-2.5">
+      <span className="relative inline-block h-1.5 w-20 overflow-hidden rounded-full bg-bg-surface ring-1 ring-inset ring-border-default/60">
+        <span
+          className={`block h-full rounded-full ${tone.bar} transition-[width] duration-500 ease-out`}
+          style={{ width: `${clamped}%` }}
+        />
+      </span>
+      <span
+        className={`font-mono text-xs tabular-nums ${tone.text}`}
+        aria-label={`${Math.round(pct)}% buy`}
+      >
+        {Math.round(pct)}%
+      </span>
+    </span>
+  );
+}
+
 const TH =
   "sticky top-0 z-10 bg-bg-base/95 backdrop-blur-sm py-2.5 px-4 " +
   "text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-fg-muted " +
@@ -120,30 +143,7 @@ export function ScreenerTable({ rows }: Props) {
 
                 {/* Sentiment gauge */}
                 <td className="py-2.5 px-4 border-b border-border-default/40 whitespace-nowrap">
-                  {r.sentiment_buy_pct === null || r.sentiment_buy_pct === undefined ? (
-                    <span className="text-fg-muted">—</span>
-                  ) : (
-                    (() => {
-                      const pct = Math.max(0, Math.min(100, r.sentiment_buy_pct!));
-                      const tone = sentimentTone(pct);
-                      return (
-                        <span className="inline-flex items-center gap-2.5">
-                          <span className="relative inline-block h-1.5 w-20 overflow-hidden rounded-full bg-bg-surface ring-1 ring-inset ring-border-default/60">
-                            <span
-                              className={`block h-full rounded-full ${tone.bar} transition-[width] duration-500 ease-out`}
-                              style={{ width: `${pct}%` }}
-                            />
-                          </span>
-                          <span
-                            className={`font-mono text-xs tabular-nums ${tone.text}`}
-                            aria-label={`${Math.round(r.sentiment_buy_pct!)}% buy`}
-                          >
-                            {Math.round(r.sentiment_buy_pct!)}%
-                          </span>
-                        </span>
-                      );
-                    })()
-                  )}
+                  <SentimentGauge pct={r.sentiment_buy_pct} />
                 </td>
 
                 {/* Exchange chip */}

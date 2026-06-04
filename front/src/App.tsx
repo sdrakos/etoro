@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useCategoryData } from "./hooks/useCategoryData";
 import { fetchCatalogStatus } from "./api/screener";
@@ -72,18 +72,21 @@ export default function App() {
     refetchInterval: 30_000,
   });
 
-  const onCategory = (c: Category) => {
+  // Stable identities: SearchBox debounces on `onSearch` in an effect, so a
+  // fresh closure each render (e.g. on every 30s poll tick) would needlessly
+  // re-arm the timer. useCallback keeps the handlers referentially stable.
+  const onCategory = useCallback((c: Category) => {
     setCategory(c);
     setPage(1);
-  };
-  const onSearch = (s: string) => {
+  }, []);
+  const onSearch = useCallback((s: string) => {
     setQ(s);
     setPage(1);
-  };
-  const onSort = (s: SortKey) => {
+  }, []);
+  const onSort = useCallback((s: SortKey) => {
     setSort(s);
     setPage(1);
-  };
+  }, []);
 
   const categoryLabel =
     CATEGORIES.find((c) => c.id === category)?.label ?? category;
@@ -131,6 +134,9 @@ export default function App() {
       </header>
 
       {/* ── Toolbar: tabs + sort, then search + refresh + pagination ──── */}
+      {/* top-[65px] MUST equal the header's rendered height (py-4 + text-xl
+          line-box) so the two sticky bars sit flush — keep in sync if either
+          the header padding or brand type scale changes. */}
       <div className="sticky top-[65px] z-20 border-b border-border-default bg-bg-base/80 backdrop-blur-md">
         <div className="mx-auto w-full max-w-[1400px] px-6">
           <div className="flex flex-wrap items-center gap-3 py-3">
