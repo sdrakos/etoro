@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS instruments (
 );
 CREATE INDEX IF NOT EXISTS idx_instruments_id ON instruments(instrument_id);
 CREATE INDEX IF NOT EXISTS idx_instruments_asset ON instruments(asset_class);
+CREATE INDEX IF NOT EXISTS idx_instruments_exchange ON instruments(exchange_name);
 """
 
 
@@ -83,9 +84,11 @@ class EtoroCatalog:
             return conn.execute("SELECT COUNT(*) FROM instruments").fetchone()[0]
 
     def query(self, asset_class: str, q: Optional[str] = None, sort: str = "name",
-              page: int = 1, page_size: int = 50) -> tuple[list[dict], int]:
+              page: int = 1, page_size: int = 50,
+              exchange: Optional[str] = None) -> tuple[list[dict], int]:
         """Return (rows, total) for one asset_class, optionally text-filtered (symbol or
-        display_name contains q), sorted by display_name ('name') or symbol, paginated."""
+        display_name contains q) and exchange-filtered, sorted by display_name ('name')
+        or symbol, paginated."""
         page = max(1, page)
         page_size = max(1, min(page_size, 200))
         where = "asset_class = ?"
@@ -94,6 +97,9 @@ class EtoroCatalog:
             where += " AND (UPPER(symbol) LIKE ? OR UPPER(display_name) LIKE ?)"
             like = f"%{q.upper()}%"
             params += [like, like]
+        if exchange:
+            where += " AND exchange_name = ?"
+            params.append(exchange)
         order = "display_name" if sort == "name" else "symbol"
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
@@ -104,17 +110,34 @@ class EtoroCatalog:
                 f"LIMIT ? OFFSET ?", params + [page_size, (page - 1) * page_size]).fetchall()
         return [dict(r) for r in rows], total
 
-    def all_for_category(self, asset_class: str, q: Optional[str] = None) -> list[dict]:
-        """All rows for one asset_class (no pagination), optional text filter on
-        symbol/display_name. For in-memory sort by computed live fields."""
+    def all_for_category(self, asset_class: str, q: Optional[str] = None,
+                         exchange: Optional[str] = None) -> list[dict]:
+        """All rows for one asset_class (no pagination), optional text + exchange filter.
+        For in-memory sort by computed live fields."""
         where = "asset_class = ?"
         params: list = [asset_class]
         if q:
             where += " AND (UPPER(symbol) LIKE ? OR UPPER(display_name) LIKE ?)"
             like = f"%{q.upper()}%"
             params += [like, like]
+        if exchange:
+            where += " AND exchange_name = ?"
+            params.append(exchange)
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             rows = conn.execute(
                 f"SELECT * FROM instruments WHERE {where} ORDER BY display_name", params).fetchall()
+        return [dict(r) for r in rows]
+
+    def exchanges(self, asset_class: str) -> list[dict]:
+        """Distinct exchanges for one asset_class with instrument counts, busiest first.
+        Skips NULL/empty exchange names. Return: [{"exchange": str, "count": int}, ...]."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                "SELECT exchange_name AS exchange, COUNT(*) AS count FROM instruments "
+                "WHERE asset_class = ? AND exchange_name IS NOT NULL AND exchange_name <> '' "
+                "GROUP BY exchange_name ORDER BY count DESC, exchange_name",
+                (asset_class,),
+            ).fetchall()
         return [dict(r) for r in rows]

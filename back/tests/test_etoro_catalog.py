@@ -114,3 +114,35 @@ def test_all_for_category_returns_everything(tmp_path):
     # text filter still applies
     cat.upsert([{"symbol": "AAPL", "instrument_id": 9999, "asset_class": "Stocks", "display_name": "Apple"}])
     assert len(cat.all_for_category("Stocks", q="apple")) == 1
+
+
+def test_exchanges_distinct_counts_sorted(tmp_path):
+    from data_cache.etoro_catalog import EtoroCatalog
+    cat = EtoroCatalog(tmp_path / "c.db")
+    cat.upsert([
+        {"symbol": "AAPL", "instrument_id": 1, "asset_class": "Stocks", "exchange_name": "Nasdaq"},
+        {"symbol": "MSFT", "instrument_id": 2, "asset_class": "Stocks", "exchange_name": "Nasdaq"},
+        {"symbol": "JPM", "instrument_id": 3, "asset_class": "Stocks", "exchange_name": "NYSE"},
+        {"symbol": "BTC", "instrument_id": 4, "asset_class": "Crypto", "exchange_name": "Digital Currency"},
+        {"symbol": "NOEXCH", "instrument_id": 5, "asset_class": "Stocks", "exchange_name": None},
+    ])
+    ex = cat.exchanges("Stocks")
+    assert ex == [{"exchange": "Nasdaq", "count": 2}, {"exchange": "NYSE", "count": 1}]
+    assert cat.exchanges("Crypto") == [{"exchange": "Digital Currency", "count": 1}]
+
+
+def test_query_and_all_for_category_exchange_filter(tmp_path):
+    from data_cache.etoro_catalog import EtoroCatalog
+    cat = EtoroCatalog(tmp_path / "c.db")
+    cat.upsert([
+        {"symbol": "AAPL", "instrument_id": 1, "asset_class": "Stocks", "exchange_name": "Nasdaq",
+         "display_name": "Apple"},
+        {"symbol": "JPM", "instrument_id": 2, "asset_class": "Stocks", "exchange_name": "NYSE",
+         "display_name": "JPMorgan"},
+    ])
+    rows, total = cat.query("Stocks", exchange="Nasdaq")
+    assert total == 1 and [r["symbol"] for r in rows] == ["AAPL"]
+    allrows = cat.all_for_category("Stocks", exchange="NYSE")
+    assert [r["symbol"] for r in allrows] == ["JPM"]
+    _, total_all = cat.query("Stocks")
+    assert total_all == 2
