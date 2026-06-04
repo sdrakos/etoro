@@ -26,6 +26,26 @@ export const handlers = [
     ...sp500Rows,
     ...nasdaq100Rows.filter(r => r.ticker !== "AAPL"),
   ])),
+  http.get("/screener/category/:category", ({ params, request }) => {
+    const url = new URL(request.url);
+    const category = String(params.category);
+    const items = [
+      { ticker: "BTC", name: "Bitcoin", sector: "Crypto", instrument_id: 100000,
+        exchange: "Digital Currency", price: 65000, sell: 64990, buy: 65010,
+        change_pct: 8.3, sentiment_buy_pct: 90, is_open: true,
+        volume: null, market_cap: null, pe_ratio: null },
+      { ticker: "ABT", name: "Arcblock", sector: "Crypto", instrument_id: 9000,
+        exchange: "Digital Currency", price: 0.2, sell: null, buy: null,
+        change_pct: -20, sentiment_buy_pct: 30, is_open: true,
+        volume: null, market_cap: null, pe_ratio: null },
+    ];
+    return HttpResponse.json({
+      items, total: 2, page: Number(url.searchParams.get("page") ?? 1),
+      pageSize: Number(url.searchParams.get("pageSize") ?? 50), category,
+    });
+  }),
+  http.get("/screener/catalog-status", () =>
+    HttpResponse.json({ instruments: 15000, last_refresh_age_s: 12 })),
   http.get("/screener/:bad", ({ params }) => {
     if (!["sp500", "nasdaq100", "combined"].includes(params.bad as string)) {
       return new HttpResponse("Not found", { status: 404 });
