@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useCategoryData } from "./hooks/useCategoryData";
+import { useExchanges } from "./hooks/useExchanges";
 import { usePriceStream } from "./hooks/usePriceStream";
 import { fetchCatalogStatus } from "./api/screener";
 import { CategoryTabs } from "./components/CategoryTabs";
+import { ExchangeFilter } from "./components/ExchangeFilter";
 import { SearchBox } from "./components/SearchBox";
 import { ScreenerTable } from "./components/ScreenerTable";
 import { Pagination } from "./components/Pagination";
@@ -61,10 +63,11 @@ export default function App() {
   const [page, setPage] = useState(1);
   const [q, setQ] = useState("");
   const [sort, setSort] = useState<SortKey>("change");
+  const [exchange, setExchange] = useState<string | null>(null);
 
   const { data, isLoading, isError, isFetching, refetch } = useCategoryData(
     category,
-    { page, pageSize: PAGE_SIZE, sort, dir: "desc", q: q || undefined },
+    { page, pageSize: PAGE_SIZE, sort, dir: "desc", q: q || undefined, exchange: exchange ?? undefined },
   );
 
   const status = useQuery({
@@ -72,6 +75,8 @@ export default function App() {
     queryFn: fetchCatalogStatus,
     refetchInterval: 30_000,
   });
+
+  const exchanges = useExchanges(category);
 
   const stream = usePriceStream();
   useEffect(() => {
@@ -86,6 +91,7 @@ export default function App() {
   // re-arm the timer. useCallback keeps the handlers referentially stable.
   const onCategory = useCallback((c: Category) => {
     setCategory(c);
+    setExchange(null);
     setPage(1);
   }, []);
   const onSearch = useCallback((s: string) => {
@@ -94,6 +100,10 @@ export default function App() {
   }, []);
   const onSort = useCallback((s: SortKey) => {
     setSort(s);
+    setPage(1);
+  }, []);
+  const onExchange = useCallback((ex: string | null) => {
+    setExchange(ex);
     setPage(1);
   }, []);
 
@@ -150,6 +160,12 @@ export default function App() {
         <div className="mx-auto w-full max-w-[1400px] px-6">
           <div className="flex flex-wrap items-center gap-3 py-3">
             <CategoryTabs value={category} onChange={onCategory} />
+
+            <ExchangeFilter
+              value={exchange}
+              options={exchanges.data ?? []}
+              onChange={onExchange}
+            />
 
             <label className="ml-auto inline-flex items-center gap-2 text-xs text-fg-muted">
               <span className="hidden sm:inline">Sort by</span>
