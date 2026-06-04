@@ -36,6 +36,15 @@ class PriceRelay:
     def set_prev_close(self, mapping: dict[int, float]) -> None:
         self._prev_close = dict(mapping)
 
+    async def start(self) -> None:
+        await self._client.start()
+
+    async def stop(self) -> None:
+        for t in list(self._pending.values()):
+            t.cancel()
+        self._pending.clear()
+        await self._client.stop()
+
     async def set_ids(self, browser, ids) -> None:
         ids = {int(i) for i in ids}
         prev = self._owned.get(id(browser), set())
@@ -84,7 +93,10 @@ class PriceRelay:
 
     async def _on_tick(self, tick: Tick) -> None:
         for browser in list(self._subs.get(tick.instrument_id, ())):
-            await self._send(browser, tick)
+            try:
+                await self._send(browser, tick)
+            except Exception:
+                await self.detach(browser)  # drop a dead client; never break fan-out to others
 
     async def _send(self, browser, tick: Tick) -> None:
         await browser.send_json({
@@ -123,25 +135,36 @@ def get_relay() -> PriceRelay:
     return _relay
 
 
+_start_task = None
+
+
 def _ensure_started() -> None:
-    """Lazily start the upstream connection on the first browser subscriber."""
-    global _started
+    """Lazily start the upstream connection on the first browser subscriber.
+
+    Single-threaded event loop: the check/set below does no `await`, so concurrent
+    first-connections in the same tick can't race. Do not insert an `await` here.
+    """
+    global _started, _start_task
     if not _started:
         _started = True
-        asyncio.create_task(get_relay()._client.start())
+        _start_task = asyncio.create_task(get_relay().start())
 
 
 async def stop_relay() -> None:
-    global _relay, _started
+    global _relay, _started, _start_task
     if _relay is not None:
-        await _relay._client.stop()
-    _relay, _started = None, False
+        await _relay.stop()
+    _relay, _started, _start_task = None, False, None
 
 
 @router.websocket("/ws/prices")
 async def ws_prices(ws: WebSocket):
     await ws.accept()
-    relay = get_relay()
+    try:
+        relay = get_relay()
+    except Exception:
+        await ws.close(code=1011)  # keys missing / relay unavailable
+        return
     _ensure_started()
     try:
         while True:

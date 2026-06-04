@@ -13,6 +13,8 @@ class FakeClient:
     def last(self, i): return self._last.get(int(i))
     async def subscribe(self, ids): self.subbed.append(set(ids))
     async def unsubscribe(self, ids): self.unsubbed.append(set(ids))
+    async def start(self): self.started = True
+    async def stop(self): self.stopped = True
     async def emit(self, tick):
         self._last[tick.instrument_id] = tick
         r = self._cb(tick)
@@ -71,4 +73,37 @@ def test_snapshot_sent_to_new_subscriber():
         a = FakeBrowser()
         await relay.set_ids(a, {100000})
         assert a.sent and a.sent[-1]["bid"] == 5.0    # immediate snapshot
+    asyncio.run(scenario())
+
+
+def test_dead_browser_does_not_break_fanout():
+    async def scenario():
+        client = FakeClient()
+        relay = PriceRelay(client, prev_close={})
+
+        class DeadBrowser:
+            async def send_json(self, obj):
+                raise RuntimeError("gone")
+
+        good, bad = FakeBrowser(), DeadBrowser()
+        await relay.set_ids(good, {7})
+        await relay.set_ids(bad, {7})
+        await client.emit(Tick(7, last=1.0))             # bad raises mid-fanout
+        assert any(s["instrumentId"] == 7 for s in good.sent)  # good still got it
+    asyncio.run(scenario())
+
+
+def test_stop_cancels_pending_unsub_and_stops_client():
+    import routers.ws_prices as mod
+    async def scenario():
+        client = FakeClient()
+        relay = PriceRelay(client, prev_close={})
+        a = FakeBrowser()
+        await relay.set_ids(a, {7})
+        await relay.detach(a)            # schedules a debounced unsub task
+        assert relay._pending            # pending exists
+        await relay.stop()               # cancels pending + stops client
+        assert not relay._pending
+        assert getattr(client, "stopped", False) is True
+    mod.UNSUB_DEBOUNCE_S = 10.0          # keep it long so it can't fire before stop
     asyncio.run(scenario())
