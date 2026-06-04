@@ -71,3 +71,24 @@ def test_category_pagesize_clamped(client):
     client.post("/screener/refresh-etoro-catalog")
     body = client.get("/screener/category/stocks", params={"pageSize": 9999}).json()
     assert body["pageSize"] == 200
+
+
+def test_exchanges_endpoint_lists_distinct_with_counts(client):
+    client.post("/screener/refresh-etoro-catalog")
+    r = client.get("/screener/exchanges/stocks")
+    assert r.status_code == 200
+    assert r.json() == [{"exchange": "Nasdaq", "count": 2}]
+    assert client.get("/screener/exchanges/crypto").json() == [
+        {"exchange": "Digital Currency", "count": 2}]
+
+
+def test_exchanges_unknown_category_404(client):
+    assert client.get("/screener/exchanges/widgets").status_code == 404
+
+
+def test_category_exchange_filter(client):
+    client.post("/screener/refresh-etoro-catalog")
+    hit = client.get("/screener/category/stocks?exchange=Nasdaq&sort=name")
+    assert hit.status_code == 200 and hit.json()["total"] == 2
+    miss = client.get("/screener/category/stocks?exchange=NYSE&sort=name")
+    assert miss.json()["total"] == 0 and miss.json()["items"] == []

@@ -244,7 +244,7 @@ def _enrich_category(rows: list[dict], client, closing: dict, with_rates: bool) 
 @router.get("/category/{category}", response_model=CategoryPage)
 def category_browse(category: str, page: int = Query(1), pageSize: int = Query(50),
                     sort: str = Query("change"), dir: str = Query("desc"),
-                    q: Optional[str] = Query(None)):
+                    q: Optional[str] = Query(None), exchange: Optional[str] = Query(None)):
     asset = _CATEGORY_MAP.get(category.lower())
     if asset is None:
         raise HTTPException(404, f"Unknown category: {category}")
@@ -255,12 +255,12 @@ def category_browse(category: str, page: int = Query(1), pageSize: int = Query(5
     closing = _fetch_closing(client)
 
     if sort == "name":
-        rows, total = catalog.query(asset, q, "name", page, page_size)
+        rows, total = catalog.query(asset, q, "name", page, page_size, exchange=exchange)
         items = _enrich_category(rows, client, closing, with_rates=True)
         return CategoryPage(items=items, total=total, page=page, pageSize=page_size,
                             category=category.lower())
 
-    all_rows = catalog.all_for_category(asset, q)
+    all_rows = catalog.all_for_category(asset, q, exchange=exchange)
     total = len(all_rows)
     enriched = _enrich_category(all_rows, client, closing, with_rates=False)
     keyf = ((lambda x: x.change_pct if x.change_pct is not None else float("-inf"))
@@ -295,6 +295,14 @@ def catalog_status():
     cat = EtoroCatalog(CATALOG_DB)
     age = (time.time() - _last_refresh_ts) if _last_refresh_ts is not None else None
     return {"instruments": cat.count(), "last_refresh_age_s": age}
+
+
+@router.get("/exchanges/{category}")
+def category_exchanges(category: str):
+    asset = _CATEGORY_MAP.get(category.lower())
+    if asset is None:
+        raise HTTPException(404, f"Unknown category: {category}")
+    return EtoroCatalog(CATALOG_DB).exchanges(asset)
 
 
 @router.get("/{universe}", response_model=list[ScreenerRow])
