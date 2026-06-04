@@ -146,3 +146,18 @@ def test_query_and_all_for_category_exchange_filter(tmp_path):
     assert [r["symbol"] for r in allrows] == ["JPM"]
     _, total_all = cat.query("Stocks")
     assert total_all == 2
+
+
+def test_get_by_instrument_ids(tmp_path):
+    from data_cache.etoro_catalog import EtoroCatalog
+    cat = EtoroCatalog(tmp_path / "c.db")
+    cat.upsert([
+        {"symbol": "AAPL", "instrument_id": 1001, "asset_class": "Stocks",
+         "display_name": "Apple", "exchange_name": "Nasdaq", "current_rate": 210.0},
+        {"symbol": "MSFT", "instrument_id": 1002, "asset_class": "Stocks",
+         "display_name": "Microsoft", "exchange_name": "Nasdaq", "current_rate": 400.0},
+    ])
+    m = cat.get_by_instrument_ids([1001, 99999])
+    assert set(m.keys()) == {1001}
+    assert m[1001]["symbol"] == "AAPL" and m[1001]["current_rate"] == 210.0
+    assert cat.get_by_instrument_ids([]) == {}

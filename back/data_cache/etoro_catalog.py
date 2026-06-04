@@ -141,3 +141,16 @@ class EtoroCatalog:
                 (asset_class,),
             ).fetchall()
         return [dict(r) for r in rows]
+
+    def get_by_instrument_ids(self, ids: Iterable[int]) -> dict[int, dict]:
+        """Map instrument_id -> catalog row for the given ids. Unknown ids are omitted."""
+        idlist = [int(i) for i in ids if i is not None]
+        if not idlist:
+            return {}
+        placeholders = ",".join("?" * len(idlist))
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                f"SELECT * FROM instruments WHERE instrument_id IN ({placeholders})", idlist
+            ).fetchall()
+        return {r["instrument_id"]: dict(r) for r in rows}
