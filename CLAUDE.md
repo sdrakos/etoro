@@ -8,6 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 `back/.env` secrets and data conventions:
 
 - **`back/`** — FastAPI layer. (a) Wrapper over the Massive.com (Polygon.io rebrand) REST API, 104 endpoints across 9 routers; (b) the eToro Public API integration (`back/etoro_api/` typed client + vault, `back/routers/etoro/` proxy/social/portfolio/order routers) for the user's real eToro account. Used directly via HTTP or imported by other tools.
+- **`front/`** — **QUANTIQ** web app (React + Vite + TanStack Query/Table + Tailwind). A live eToro **Screener** (category browse + exchange filter + WebSocket live prices) and a **Portfolio** view (open positions + live P&L + close). Talks only to `back/` over the Vite dev proxy. See the QUANTIQ section below.
 - **`trader/`** — Phase 1 Python backtesting framework on backtrader. Strategy-agnostic: adding a new strategy is dropping one file under `trader/strategies/`. Default data source is Yahoo (keyless); Massive optional via `--source`.
 - **`paper1_RL/`** — Research component: the **Differential Entropic Reward (DER)** paper (`der_paper_full.tex/.pdf`) plus its reproducibility code. Includes the signal-engine + DER-risk-layer alpha experiments (PEAD, sector-neutral momentum, VIX-driven θ) validated on Yahoo 2015–2024 — see `docs/superpowers/specs|plans/2026-06-03-der-alpha-signal-engine*`.
 - **`paper2_RL/`** — follow-on research (in progress).
@@ -64,6 +65,20 @@ Don't manually register strategies anywhere. Don't import strategies in `__init_
 
 `trader/` does **not** HTTP-call `back/`. For the Massive source, both import the same `polygon` / `massive` Python SDK directly; for the Yahoo source `trader/` uses `yfinance`. `back/` is Massive-only and for external consumers (future web UI, n8n, etc.) — backtests don't need a server running.
 
+### QUANTIQ web app (`front/` + eToro live layer in `back/`)
+
+The QUANTIQ frontend is a multi-view eToro app for **non-technical** users. It runs against `back/` (demo account, app keys from `back/.env`) on **port 8765**; the Vite dev server proxies `/screener`, `/portfolio`, and `/ws` there (`front/vite.config.ts` — **every backend path the UI calls needs a proxy entry**, or you get `Could not load …`). True multitenant per-user keys (X-User-Id → vault) is a future phase; everything below uses `get_server_client()` (shared app keys).
+
+**Backend pieces (all `get_server_client`, demo):**
+- `back/data_cache/etoro_catalog.py` — SQLite cache of the eToro instrument catalog (`~/.etoro/etoro_catalog.db`), populated from `/instruments/discover`. `query`/`all_for_category` (text + `exchange` filter), `exchanges(asset_class)`, `get_by_instrument_ids`. **The eToro REST `fields`/docs are aspirational** — real shapes were reverse-engineered (lean discover items; `/rates` returns bid/ask for only a subset; sector is NOT available).
+- `back/routers/screener.py` — `GET /screener/category/{cat}` (paginated/sorted/searched + `exchange` param), `GET /screener/exchanges/{cat}`, `/movers`, `/catalog-status`. A FastAPI lifespan loop auto-refreshes the catalog every ~90s so prices don't freeze.
+- `back/etoro_api/ws_client.py` + `back/routers/ws_prices.py` — the **price relay**: ONE shared upstream `wss://ws.etoro.com/ws` connection (`EtoroWsClient`, reconnect/backoff) fanned out to browsers over `GET(ws) /ws/prices`. `PriceRelay` ref-counts instrument subscriptions, computes live change% from prevClose, drops dead clients without breaking fan-out. **The real WS tick frame has NO `type` field and string-typed `Bid/Ask/LastExecution`** — `parse_messages` handles that.
+- `back/routers/portfolio.py` — `GET /portfolio/positions` (normalizes `clientPortfolio.positions[]` + enriches symbol/name/seed-rate from the catalog), `POST /portfolio/close/{id}` (demo market-close; `guard_real()` for real, gated by `QUANTIQ_ALLOW_REAL_EXECUTION`).
+
+**Frontend (`front/src/`):** `views/ScreenerView.tsx` + `views/PortfolioView.tsx` behind `components/AppNav.tsx`; `App.tsx` is a thin shell. `hooks/usePriceStream.ts` is the browser WS client (reconnect, `Map<id,LiveTick>`); the screener/portfolio overlay live ticks on REST "seed" rows. **Live P&L is computed frontend-side** (`lib/pnl.ts`: `units*(price-open_rate)*(is_buy?1:-1)`) — the same `/ws/prices` relay drives both screener prices and portfolio P&L. Tests are fully offline (Vitest + MSW; async backend tests use `asyncio.run`, no `pytest-asyncio`).
+
+**Specs/plans** for all of the above live in `docs/superpowers/specs|plans/2026-06-04-screener-*` and `2026-06-04-portfolio-*`. **Deferred:** sector/industry filter (no cheap data source); WebSocket-true multitenant.
+
 ### Sharpe/Sortino on zero-trade backtests
 
 `extract_metrics` in `trader/engine/analyzers.py` returns `None` for `sharpe`/`sortino` when `total_trades == 0`. Otherwise a flat strategy looks catastrophic. Don't revert this guard.
@@ -86,6 +101,17 @@ All commands assume cwd is `etoro/`.
 cd back && python -m uvicorn main:app --reload --port 8765
 # → http://127.0.0.1:8765/docs
 ```
+
+### front/ (QUANTIQ web app)
+
+```bash
+cd back && python -m uvicorn main:app --reload --port 8765   # backend MUST run first (proxy target)
+cd front && npm run dev          # Vite dev server :5173 (proxies /screener,/portfolio,/ws → 8765)
+cd front && npm run test:run     # Vitest (offline, MSW)
+cd front && npm run build        # tsc -b && vite build
+```
+
+`back/` tests for the eToro/QUANTIQ layer: `cd back && python -m pytest tests/ -q` (offline; `test_etoro_*`, `test_screener_*`, `test_price_relay`, `test_ws_prices_endpoint`, `test_portfolio`). If the UI shows `Could not load …` while the screener works, a backend path is missing from the Vite proxy — add it to `front/vite.config.ts` and restart `npm run dev`.
 
 ### trader/ tests
 
