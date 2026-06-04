@@ -17,6 +17,7 @@ from routers import (
     stocks,
 )
 from routers import etoro
+from routers import ws_prices
 from routers.screener import _refresh_once, CATALOG_REFRESH_S
 
 @asynccontextmanager
@@ -33,6 +34,7 @@ async def lifespan(app: FastAPI):
         yield
     finally:
         task.cancel()
+        await ws_prices.stop_relay()
 
 
 app = FastAPI(
@@ -60,6 +62,7 @@ app.include_router(filings.router)
 app.include_router(reference.router)
 app.include_router(screener.router)
 app.include_router(etoro.router)
+app.include_router(ws_prices.router)
 
 
 @app.get("/", tags=["health"])

@@ -4,6 +4,8 @@ import asyncio
 from collections import Counter
 from typing import Optional
 
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+
 from etoro_api.ws_client import EtoroWsClient, Tick
 
 UNSUB_DEBOUNCE_S = 10.0          # keep an upstream sub alive briefly after refcount hits 0
@@ -91,3 +93,62 @@ class PriceRelay:
             "change_pct": compute_change(tick.last, self._prev_close.get(tick.instrument_id)),
             "ts": tick.ts,
         })
+
+
+router = APIRouter(tags=["screener-ws"])
+
+_relay: Optional[PriceRelay] = None
+_started = False
+
+
+def _load_prev_close() -> dict[int, float]:
+    """prevClose per instrument for live change%. Best-effort; daily granularity."""
+    try:
+        from routers.screener import _fetch_closing
+        from etoro_api.server import get_server_client
+        closing = _fetch_closing(get_server_client())
+        return {int(k): v["officialClosingPrice"] for k, v in closing.items()
+                if v.get("officialClosingPrice") not in (None, 0)}
+    except Exception:
+        return {}
+
+
+def get_relay() -> PriceRelay:
+    global _relay
+    if _relay is None:
+        from etoro_api.server import get_server_client
+        c = get_server_client()                       # validates keys (503 if missing)
+        client = EtoroWsClient(c.public_key, c.user_key)
+        _relay = PriceRelay(client, _load_prev_close())
+    return _relay
+
+
+def _ensure_started() -> None:
+    """Lazily start the upstream connection on the first browser subscriber."""
+    global _started
+    if not _started:
+        _started = True
+        asyncio.create_task(get_relay()._client.start())
+
+
+async def stop_relay() -> None:
+    global _relay, _started
+    if _relay is not None:
+        await _relay._client.stop()
+    _relay, _started = None, False
+
+
+@router.websocket("/ws/prices")
+async def ws_prices(ws: WebSocket):
+    await ws.accept()
+    relay = get_relay()
+    _ensure_started()
+    try:
+        while True:
+            msg = await ws.receive_json()
+            if msg.get("op") == "set":
+                await relay.set_ids(ws, {int(x) for x in msg.get("ids", [])})
+    except WebSocketDisconnect:
+        await relay.detach(ws)
+    except Exception:
+        await relay.detach(ws)
