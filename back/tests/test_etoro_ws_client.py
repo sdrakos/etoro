@@ -42,3 +42,61 @@ def test_parse_messages_skips_bad_content_and_empty():
     bad = {"messages": [{"topic": "instrument:5", "type": "Trading.Instrument.Rate",
                          "content": "not-json"}]}
     assert parse_messages(bad) == []
+
+
+import asyncio
+from etoro_api.ws_client import EtoroWsClient
+
+
+class FakeWS:
+    """In-memory websocket: records sent frames, yields canned incoming frames once."""
+    def __init__(self, incoming):
+        self.sent = []
+        self._incoming = [json.dumps(x) for x in incoming]
+        self.closed = False
+
+    async def send(self, raw):
+        self.sent.append(json.loads(raw))
+
+    async def close(self):
+        self.closed = True
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        if self._incoming:
+            return self._incoming.pop(0)
+        raise StopAsyncIteration
+
+
+def test_serve_authenticates_then_subscribes_active_then_emits_ticks():
+    captured: list = []
+    tick_frame = {"messages": [{"topic": "instrument:100000", "type": "Trading.Instrument.Rate",
+                                "content": json.dumps({"Bid": 1.0, "Ask": 2.0, "LastExecution": 1.5,
+                                                       "Date": "T"})}]}
+    ws = FakeWS([tick_frame])
+    client = EtoroWsClient("API", "USER")
+    client._active = {100000}                      # pretend already subscribed
+    client.on_tick(lambda t: captured.append(t))
+
+    asyncio.run(client._serve(ws))
+
+    assert ws.sent[0]["operation"] == "Authenticate"
+    assert ws.sent[1]["operation"] == "Subscribe"
+    assert ws.sent[1]["data"]["topics"] == ["instrument:100000"]
+    assert len(captured) == 1 and captured[0].instrument_id == 100000
+    assert client.last(100000).bid == 1.0
+
+
+def test_subscribe_tracks_active_and_sends_when_connected():
+    ws = FakeWS([])
+    client = EtoroWsClient("API", "USER")
+    client._ws = ws
+    asyncio.run(client.subscribe({1001, 1002}))
+    assert client._active == {1001, 1002}
+    assert ws.sent[-1]["operation"] == "Subscribe"
+    # subscribing the same ids again sends nothing new
+    ws.sent.clear()
+    asyncio.run(client.subscribe({1001}))
+    assert ws.sent == []

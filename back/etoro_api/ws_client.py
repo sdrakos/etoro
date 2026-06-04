@@ -61,3 +61,102 @@ def parse_messages(raw: dict) -> list[Tick]:
         out.append(Tick(instrument_id=iid, bid=content.get("Bid"), ask=content.get("Ask"),
                         last=content.get("LastExecution"), ts=content.get("Date")))
     return out
+
+
+class EtoroWsClient:
+    """One upstream eToro WS connection. Reconnects, re-subscribes, fans out ticks.
+
+    `connect` is injectable for tests. `on_tick(cb)` may take a sync OR async callback.
+    """
+    def __init__(self, api_key: str, user_key: str, *, url: str = WS_URL, connect=None):
+        self._api_key = api_key
+        self._user_key = user_key
+        self._url = url
+        self._connect = connect or self._default_connect
+        self._ws = None
+        self._active: set[int] = set()
+        self._last: dict[int, Tick] = {}
+        self._cb: Optional[Callable] = None
+        self._task: Optional[asyncio.Task] = None
+        self._stopped = False
+
+    def on_tick(self, cb: Callable) -> None:
+        self._cb = cb
+
+    def last(self, instrument_id: int) -> Optional[Tick]:
+        return self._last.get(int(instrument_id))
+
+    async def _default_connect(self):
+        return await websockets.connect(self._url, additional_headers={
+            "User-Agent": _USER_AGENT, "x-api-key": self._api_key, "x-user-key": self._user_key})
+
+    async def start(self) -> None:
+        if self._task is None or self._task.done():
+            self._stopped = False
+            self._task = asyncio.create_task(self._run())
+
+    async def stop(self) -> None:
+        self._stopped = True
+        if self._ws is not None:
+            try:
+                await self._ws.close()
+            except Exception:
+                pass
+        if self._task is not None:
+            self._task.cancel()
+
+    async def subscribe(self, ids) -> None:
+        ids = {int(i) for i in ids} - self._active
+        if not ids:
+            return
+        self._active |= ids
+        if self._ws is not None:
+            await self._ws.send(json.dumps(build_subscribe(ids)))
+
+    async def unsubscribe(self, ids) -> None:
+        ids = {int(i) for i in ids} & self._active
+        if not ids:
+            return
+        self._active -= ids
+        if self._ws is not None:
+            await self._ws.send(json.dumps(build_unsubscribe(ids)))
+
+    async def _emit(self, tick: Tick) -> None:
+        self._last[tick.instrument_id] = tick
+        if self._cb is None:
+            return
+        res = self._cb(tick)
+        if inspect.isawaitable(res):
+            await res
+
+    async def _serve(self, ws) -> None:
+        """Authenticate, (re)subscribe the active set, then pump ticks until the socket ends."""
+        self._ws = ws
+        await ws.send(json.dumps(build_auth(self._api_key, self._user_key)))
+        if self._active:
+            await ws.send(json.dumps(build_subscribe(self._active)))
+        async for raw in ws:
+            try:
+                data = json.loads(raw) if isinstance(raw, (str, bytes, bytearray)) else raw
+            except json.JSONDecodeError:
+                continue
+            for tick in parse_messages(data):
+                await self._emit(tick)
+
+    async def _run(self) -> None:
+        backoff = 1
+        while not self._stopped:
+            try:
+                ws = await self._connect()
+                await self._serve(ws)
+                backoff = 1
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                pass
+            finally:
+                self._ws = None
+            if self._stopped:
+                break
+            await asyncio.sleep(backoff)
+            backoff = min(backoff * 2, 30)
