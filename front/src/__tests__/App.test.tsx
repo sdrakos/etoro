@@ -21,4 +21,10 @@ describe("App", () => {
     await userEvent.click(screen.getByRole("button", { name: "Crypto" }));
     await waitFor(() => expect(screen.getByText("Bitcoin")).toBeInTheDocument());
   });
+
+  it("switches to the Portfolio view", async () => {
+    renderApp();
+    await userEvent.click(screen.getByRole("button", { name: "Portfolio" }));
+    await waitFor(() => expect(screen.getByText(/Invested/i)).toBeInTheDocument());
+  });
 });
