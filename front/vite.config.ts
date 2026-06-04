@@ -8,6 +8,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       "/screener": "http://localhost:8765",
+      "/portfolio": "http://localhost:8765",
       "/ws": { target: "ws://localhost:8765", ws: true },
     },
   },
