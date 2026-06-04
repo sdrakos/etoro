@@ -44,6 +44,21 @@ def test_parse_messages_skips_bad_content_and_empty():
     assert parse_messages(bad) == []
 
 
+def test_parse_messages_real_wire_shape_string_values_no_type():
+    """The real eToro frame has NO `type` field and string-typed rate values."""
+    raw = {"messages": [{
+        "topic": "instrument:100000",
+        "content": json.dumps({"InstrumentID": "100000", "Bid": "62908.29", "Ask": "62908.3",
+                               "LastExecution": "62908.29", "Date": "2026-06-04T17:40:43Z"}),
+    }]}
+    ticks = parse_messages(raw)
+    assert len(ticks) == 1
+    t = ticks[0]
+    assert t.instrument_id == 100000
+    assert t.bid == 62908.29 and t.ask == 62908.3 and t.last == 62908.29
+    assert t.ts == "2026-06-04T17:40:43Z"
+
+
 import asyncio
 from etoro_api.ws_client import EtoroWsClient
 

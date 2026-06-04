@@ -38,11 +38,26 @@ def build_unsubscribe(ids) -> dict:
             "data": {"topics": [f"instrument:{i}" for i in sorted(ids)]}}
 
 
+def _to_float(v) -> Optional[float]:
+    """eToro sends rate fields as strings (e.g. \"62908.29\"). Coerce; None on junk."""
+    if v is None:
+        return None
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
 def parse_messages(raw: dict) -> list[Tick]:
+    """Extract price ticks from an eToro WS frame.
+
+    Real rate messages carry only ``topic`` + ``content`` (the documented
+    ``type: "Trading.Instrument.Rate"`` is NOT present on the wire), and the
+    numeric fields arrive as strings. We accept any ``instrument:<id>`` topic
+    whose content has at least one price field, coercing values to float.
+    """
     out: list[Tick] = []
     for m in (raw.get("messages") or []):
-        if m.get("type") != "Trading.Instrument.Rate":
-            continue
         topic = m.get("topic", "")
         if not topic.startswith("instrument:"):
             continue
@@ -58,8 +73,12 @@ def parse_messages(raw: dict) -> list[Tick]:
                 continue
         if not isinstance(content, dict):
             continue
-        out.append(Tick(instrument_id=iid, bid=content.get("Bid"), ask=content.get("Ask"),
-                        last=content.get("LastExecution"), ts=content.get("Date")))
+        bid = _to_float(content.get("Bid"))
+        ask = _to_float(content.get("Ask"))
+        last = _to_float(content.get("LastExecution"))
+        if bid is None and ask is None and last is None:
+            continue  # not a price message (e.g. an empty/ack payload)
+        out.append(Tick(instrument_id=iid, bid=bid, ask=ask, last=last, ts=content.get("Date")))
     return out
 
 
