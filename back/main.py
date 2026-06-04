@@ -18,6 +18,7 @@ from routers import (
 )
 from routers import etoro
 from routers import ws_prices
+from routers import portfolio
 from routers.screener import _refresh_once, CATALOG_REFRESH_S
 
 @asynccontextmanager
@@ -63,6 +64,7 @@ app.include_router(reference.router)
 app.include_router(screener.router)
 app.include_router(etoro.router)
 app.include_router(ws_prices.router)
+app.include_router(portfolio.router)
 
 
 @app.get("/", tags=["health"])
