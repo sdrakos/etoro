@@ -52,3 +52,8 @@ export interface CatalogStatus {
   instruments: number;
   last_refresh_age_s: number | null;
 }
+
+export interface ExchangeOption {
+  exchange: string;
+  count: number;
+}

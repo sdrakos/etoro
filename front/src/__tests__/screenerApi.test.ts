@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { fetchCategory, fetchCatalogStatus } from "../api/screener";
+import { fetchCategory, fetchCatalogStatus, fetchExchanges } from "../api/screener";
 
 describe("fetchCategory", () => {
   it("requests the category with params and returns a page", async () => {
@@ -15,5 +15,21 @@ describe("fetchCatalogStatus", () => {
   it("returns instrument count + age", async () => {
     const s = await fetchCatalogStatus();
     expect(typeof s.instruments).toBe("number");
+  });
+});
+
+describe("fetchExchanges", () => {
+  it("returns exchange options for a category", async () => {
+    const ex = await fetchExchanges("stocks");
+    expect(Array.isArray(ex)).toBe(true);
+    expect(ex[0]).toHaveProperty("exchange");
+    expect(ex[0]).toHaveProperty("count");
+  });
+});
+
+describe("fetchCategory exchange param", () => {
+  it("includes exchange in the querystring when set", async () => {
+    const page = await fetchCategory("stocks", { exchange: "Nasdaq" });
+    expect(page.category).toBe("stocks");
   });
 });

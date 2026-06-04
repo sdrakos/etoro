@@ -42,8 +42,14 @@ export const handlers = [
     return HttpResponse.json({
       items, total: 2, page: Number(url.searchParams.get("page") ?? 1),
       pageSize: Number(url.searchParams.get("pageSize") ?? 50), category,
+      exchange: url.searchParams.get("exchange"),
     });
   }),
+  http.get("/screener/exchanges/:category", () =>
+    HttpResponse.json([
+      { exchange: "Nasdaq", count: 3706 },
+      { exchange: "NYSE", count: 2341 },
+    ])),
   http.get("/screener/catalog-status", () =>
     HttpResponse.json({ instruments: 15000, last_refresh_age_s: 12 })),
   http.get("/screener/:bad", ({ params }) => {

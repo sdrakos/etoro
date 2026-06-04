@@ -1,5 +1,5 @@
 import type {
-  ScreenerRow, Universe, Category, CategoryPage, CatalogStatus, SortKey,
+  ScreenerRow, Universe, Category, CategoryPage, CatalogStatus, SortKey, ExchangeOption,
 } from "../types/screener";
 
 export async function fetchScreener(universe: Universe): Promise<ScreenerRow[]> {
@@ -14,6 +14,7 @@ export interface CategoryParams {
   sort?: SortKey;
   dir?: "asc" | "desc";
   q?: string;
+  exchange?: string;
 }
 
 export async function fetchCategory(
@@ -25,6 +26,7 @@ export async function fetchCategory(
   qs.set("sort", params.sort ?? "change");
   qs.set("dir", params.dir ?? "desc");
   if (params.q) qs.set("q", params.q);
+  if (params.exchange) qs.set("exchange", params.exchange);
   const resp = await fetch(`/screener/category/${category}?${qs.toString()}`);
   if (!resp.ok) throw new Error(`Category fetch failed: ${resp.status} ${resp.statusText}`);
   return resp.json();
@@ -33,5 +35,11 @@ export async function fetchCategory(
 export async function fetchCatalogStatus(): Promise<CatalogStatus> {
   const resp = await fetch(`/screener/catalog-status`);
   if (!resp.ok) throw new Error(`Status fetch failed: ${resp.status}`);
+  return resp.json();
+}
+
+export async function fetchExchanges(category: Category): Promise<ExchangeOption[]> {
+  const resp = await fetch(`/screener/exchanges/${category}`);
+  if (!resp.ok) throw new Error(`Exchanges fetch failed: ${resp.status} ${resp.statusText}`);
   return resp.json();
 }
