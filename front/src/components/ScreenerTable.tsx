@@ -1,8 +1,22 @@
 import type { CategoryRow } from "../types/screener";
+import type { LiveTick } from "../hooks/usePriceStream";
 import { formatPercent, changeColorClass } from "../lib/formatters";
 
 interface Props {
   rows: CategoryRow[];
+  ticks?: Map<number, LiveTick>;
+}
+
+/** Overlay a live tick onto the REST seed row (Sell←bid, Buy←ask, price←last). */
+function withTick(r: CategoryRow, t: LiveTick | undefined): CategoryRow {
+  if (!t) return r;
+  return {
+    ...r,
+    sell: t.bid ?? r.sell,
+    buy: t.ask ?? r.buy,
+    price: t.last ?? r.price,
+    change_pct: t.change_pct ?? r.change_pct,
+  };
 }
 
 /** Right-aligned price/quote cell — raw toFixed(2) so it stays grep-able and digits line up. */
@@ -45,7 +59,7 @@ const TH =
   "text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-fg-muted " +
   "border-b border-border-default select-none";
 
-export function ScreenerTable({ rows }: Props) {
+export function ScreenerTable({ rows, ticks }: Props) {
   return (
     <div className="h-full overflow-auto rounded-xl border border-border-default bg-bg-base shadow-[0_1px_0_rgba(255,255,255,0.02)_inset,0_8px_24px_-12px_rgba(0,0,0,0.6)]">
       <table className="w-full border-separate border-spacing-0 text-sm">
@@ -72,7 +86,8 @@ export function ScreenerTable({ rows }: Props) {
           </tr>
         </thead>
         <tbody>
-          {rows.map((r, i) => {
+          {rows.map((seed, i) => {
+            const r = withTick(seed, ticks?.get(seed.instrument_id ?? -1));
             const up = (r.change_pct ?? 0) >= 0;
             return (
               <tr

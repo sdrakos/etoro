@@ -6,7 +6,7 @@ export function useCategoryData(category: Category, params: CategoryParams) {
   return useQuery({
     queryKey: ["screener", "category", category, params],
     queryFn: () => fetchCategory(category, params),
-    refetchInterval: 30_000,
+    refetchInterval: 300_000,
     staleTime: 30_000,
     placeholderData: (prev) => prev,
   });

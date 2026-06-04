@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { ScreenerTable } from "../components/ScreenerTable";
 import type { CategoryRow } from "../types/screener";
+import type { LiveTick } from "../hooks/usePriceStream";
 
 const rows: CategoryRow[] = [
   { ticker: "BTC", name: "Bitcoin", sector: "Crypto", instrument_id: 100000,
@@ -11,7 +12,7 @@ const rows: CategoryRow[] = [
 ];
 
 describe("ScreenerTable (eToro columns)", () => {
-  it("renders Change/Sell/Buy/Sentiment/Exchange", () => {
+  it("renders seed values when no ticks", () => {
     render(<ScreenerTable rows={rows} />);
     expect(screen.getByText("BTC")).toBeInTheDocument();
     expect(screen.getByText("Bitcoin")).toBeInTheDocument();
@@ -19,6 +20,16 @@ describe("ScreenerTable (eToro columns)", () => {
     expect(screen.getByText("+8.30%")).toBeInTheDocument();
     expect(screen.getByText("64990.00")).toBeInTheDocument();
     expect(screen.getByText("65010.00")).toBeInTheDocument();
-    expect(screen.getByText("90%")).toBeInTheDocument();        // sentiment
+    expect(screen.getByText("90%")).toBeInTheDocument();
+  });
+
+  it("overlays a live tick (sell=bid, buy=ask, change)", () => {
+    const ticks = new Map<number, LiveTick>([
+      [100000, { bid: 70000, ask: 70010, last: 70005, change_pct: -2.5, ts: "T" }],
+    ]);
+    render(<ScreenerTable rows={rows} ticks={ticks} />);
+    expect(screen.getByText("70000.00")).toBeInTheDocument();   // sell ← bid
+    expect(screen.getByText("70010.00")).toBeInTheDocument();   // buy ← ask
+    expect(screen.getByText("-2.50%")).toBeInTheDocument();     // live change
   });
 });

@@ -1,6 +1,7 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useCategoryData } from "./hooks/useCategoryData";
+import { usePriceStream } from "./hooks/usePriceStream";
 import { fetchCatalogStatus } from "./api/screener";
 import { CategoryTabs } from "./components/CategoryTabs";
 import { SearchBox } from "./components/SearchBox";
@@ -72,6 +73,14 @@ export default function App() {
     refetchInterval: 30_000,
   });
 
+  const stream = usePriceStream();
+  useEffect(() => {
+    const ids = (data?.items ?? [])
+      .map((r) => r.instrument_id)
+      .filter((x): x is number => typeof x === "number");
+    if (ids.length) stream.subscribe(ids);
+  }, [data, stream]);
+
   // Stable identities: SearchBox debounces on `onSearch` in an effect, so a
   // fresh closure each render (e.g. on every 30s poll tick) would needlessly
   // re-arm the timer. useCallback keeps the handlers referentially stable.
@@ -121,7 +130,7 @@ export default function App() {
               <span className="font-medium text-fg-default">Live</span>
               <span className="text-fg-muted/60">·</span>
               <span className="tabular-nums">
-                {freshness(status.data?.last_refresh_age_s)}
+                {stream.status === "live" ? "streaming" : freshness(status.data?.last_refresh_age_s)}
               </span>
             </span>
             {status.data?.instruments != null && (
@@ -235,7 +244,7 @@ export default function App() {
             </div>
           </div>
         ) : (
-          data && <ScreenerTable rows={data.items} />
+          data && <ScreenerTable rows={data.items} ticks={stream.ticks} />
         )}
       </main>
     </div>
