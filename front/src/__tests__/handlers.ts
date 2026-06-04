@@ -52,6 +52,16 @@ export const handlers = [
     ])),
   http.get("/screener/catalog-status", () =>
     HttpResponse.json({ instruments: 15000, last_refresh_age_s: 12 })),
+  http.get("/portfolio/positions", () =>
+    HttpResponse.json({
+      account: "demo",
+      positions: [
+        { position_id: 111, instrument_id: 1137, symbol: "ETH", name: "Ethereum",
+          is_buy: true, units: 4.633061, open_rate: 215.81, amount: 999.86,
+          leverage: 1, current_rate: 220 },
+      ],
+    })),
+  http.post("/portfolio/close/:id", () => HttpResponse.json({ ok: true })),
   http.get("/screener/:bad", ({ params }) => {
     if (!["sp500", "nasdaq100", "combined"].includes(params.bad as string)) {
       return new HttpResponse("Not found", { status: 404 });
