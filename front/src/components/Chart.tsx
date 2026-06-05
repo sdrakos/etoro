@@ -1,6 +1,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import { init, dispose } from "klinecharts";
 import type { Candle } from "../types/chart";
+import { klineStyles, type IndicatorConfig } from "../lib/indicators";
 
 export interface ChartHandle {
   updateLast: (c: Candle) => void;
@@ -8,7 +9,7 @@ export interface ChartHandle {
 
 interface Props {
   candles: Candle[];
-  indicators: string[];
+  indicators: IndicatorConfig[];
 }
 
 const MAIN_OVERLAYS = ["MA", "EMA", "BOLL"];
@@ -21,14 +22,14 @@ function toKline(c: Candle) {
 export const Chart = forwardRef<ChartHandle, Props>(function Chart({ candles, indicators }, ref) {
   const elRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<ReturnType<typeof init> | null>(null);
-  const panes = useRef<Map<string, string>>(new Map());
+  const tracked = useRef<Map<string, { paneId: string; sig: string }>>(new Map());
 
   useEffect(() => {
     chartRef.current = init(elRef.current!);
     return () => {
       if (elRef.current) dispose(elRef.current);
       chartRef.current = null;
-      panes.current.clear();
+      tracked.current.clear();
     };
   }, []);
 
@@ -39,21 +40,27 @@ export const Chart = forwardRef<ChartHandle, Props>(function Chart({ candles, in
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart) return;
-    const active = new Set(indicators);
-    for (const [name, paneId] of [...panes.current]) {
-      if (!active.has(name)) {
-        chart.removeIndicator(paneId, name);
-        panes.current.delete(name);
+    const byName = new Map(indicators.map((i) => [i.name, i]));
+
+    for (const [name, info] of [...tracked.current]) {
+      if (!byName.has(name)) {
+        chart.removeIndicator(info.paneId, name);
+        tracked.current.delete(name);
       }
     }
-    for (const name of active) {
-      if (panes.current.has(name)) continue;
-      if (MAIN_OVERLAYS.includes(name)) {
-        chart.createIndicator(name, false, { id: "candle_pane" });
-        panes.current.set(name, "candle_pane");
-      } else {
-        const paneId = chart.createIndicator(name);
-        if (paneId) panes.current.set(name, paneId);
+
+    for (const cfg of indicators) {
+      const value = { name: cfg.name, calcParams: cfg.calcParams, styles: klineStyles(cfg.colors) };
+      const sig = JSON.stringify({ p: cfg.calcParams, c: cfg.colors });
+      const existing = tracked.current.get(cfg.name);
+      if (!existing) {
+        const paneId = MAIN_OVERLAYS.includes(cfg.name)
+          ? chart.createIndicator(value, false, { id: "candle_pane" })
+          : chart.createIndicator(value);
+        if (paneId) tracked.current.set(cfg.name, { paneId, sig });
+      } else if (existing.sig !== sig) {
+        chart.overrideIndicator(value, existing.paneId);
+        tracked.current.set(cfg.name, { paneId: existing.paneId, sig });
       }
     }
   }, [indicators]);
