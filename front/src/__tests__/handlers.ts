@@ -62,6 +62,14 @@ export const handlers = [
       ],
     })),
   http.post("/portfolio/close/:id", () => HttpResponse.json({ ok: true })),
+  http.get("/charts/:id", ({ params }) =>
+    HttpResponse.json({
+      instrument_id: Number(params.id), symbol: "AAPL", name: "Apple", interval: "OneDay",
+      candles: [
+        { time: 1717459200000, open: 311.29, high: 314.7, low: 309.66, close: 311.11, volume: 36125964 },
+        { time: 1717545600000, open: 311.11, high: 311.68, low: 310.15, close: 310.57, volume: 10115 },
+      ],
+    })),
   http.get("/screener/:bad", ({ params }) => {
     if (!["sp500", "nasdaq100", "combined"].includes(params.bad as string)) {
       return new HttpResponse("Not found", { status: 404 });

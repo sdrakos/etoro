@@ -9,6 +9,7 @@ export default defineConfig({
     proxy: {
       "/screener": "http://localhost:8765",
       "/portfolio": "http://localhost:8765",
+      "/charts": "http://localhost:8765",
       "/ws": { target: "ws://localhost:8765", ws: true },
     },
   },
