@@ -1,6 +1,7 @@
 import type { CategoryRow } from "../types/screener";
 import type { LiveTick } from "../hooks/usePriceStream";
 import { formatPercent, changeColorClass } from "../lib/formatters";
+import { openChart } from "../lib/openChart";
 
 interface Props {
   rows: CategoryRow[];
@@ -114,9 +115,13 @@ export function ScreenerTable({ rows, ticks }: Props) {
                         ].join(" ")}
                       />
                     </span>
-                    <span className="font-mono font-semibold tracking-tight text-fg-default">
+                    <button
+                      type="button"
+                      onClick={() => r.instrument_id != null && openChart(r.instrument_id)}
+                      className="font-mono font-semibold tracking-tight text-fg-default hover:text-accent-blue hover:underline outline-none focus-visible:ring-2 focus-visible:ring-accent-blue/70 rounded"
+                    >
                       {r.ticker}
-                    </span>
+                    </button>
                     <span className="truncate max-w-[16rem] text-fg-muted group-hover:text-fg-default transition-colors">
                       {r.name}
                     </span>

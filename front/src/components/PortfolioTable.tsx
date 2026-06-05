@@ -2,6 +2,7 @@ import type { Position } from "../types/portfolio";
 import type { LiveTick } from "../hooks/usePriceStream";
 import { positionPnl } from "../lib/pnl";
 import { changeColorClass } from "../lib/formatters";
+import { openChart } from "../lib/openChart";
 
 interface Props {
   rows: Position[];
@@ -39,7 +40,13 @@ export function PortfolioTable({ rows, ticks, onClose, closingId }: Props) {
             return (
               <tr key={p.position_id} className="border-b border-border-default/50 hover:bg-bg-hover">
                 <td className="py-2.5 px-4">
-                  <span className="font-mono font-semibold text-fg-default">{p.symbol ?? `#${p.instrument_id}`}</span>
+                  <button
+                    type="button"
+                    onClick={() => openChart(p.instrument_id)}
+                    className="font-mono font-semibold text-fg-default hover:text-accent-blue hover:underline outline-none focus-visible:ring-2 focus-visible:ring-accent-blue/70 rounded"
+                  >
+                    {p.symbol ?? `#${p.instrument_id}`}
+                  </button>
                   {p.name && <span className="ml-2 text-fg-muted">{p.name}</span>}
                 </td>
                 <td className="py-2.5 px-4">{p.is_buy ? "Buy" : "Sell"}</td>
