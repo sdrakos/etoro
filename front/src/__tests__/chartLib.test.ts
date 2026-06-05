@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { toEtoroInterval, TIMEFRAMES } from "../lib/intervals";
+import { toEtoroInterval, countFor, TIMEFRAMES } from "../lib/intervals";
 import { liveCandle } from "../lib/chartLive";
 import { openChart } from "../lib/openChart";
 import { fetchChart } from "../api/chart";
@@ -11,6 +11,21 @@ describe("intervals", () => {
     expect(toEtoroInterval("1w")).toBe("OneWeek");
     expect(toEtoroInterval("nonsense")).toBe("OneDay");
     expect(TIMEFRAMES.find((t) => t.id === "1d")?.etoro).toBe("OneDay");
+  });
+
+  it("gives a per-interval candle count (deep history on 1d/1w), default 1000", () => {
+    expect(countFor("1d")).toBe(1000);   // ~4 years (eToro daily cap)
+    expect(countFor("1w")).toBe(1000);   // full history → 2007/2012
+    expect(countFor("5m")).toBe(500);
+    expect(countFor("nonsense")).toBe(1000);
+    expect(TIMEFRAMES.every((t) => typeof t.count === "number")).toBe(true);
+  });
+});
+
+describe("fetchChart count param", () => {
+  it("puts the count in the querystring", async () => {
+    const r = await fetchChart(1001, "OneWeek", 1000);
+    expect(r.candles.length).toBeGreaterThan(0);
   });
 });
 

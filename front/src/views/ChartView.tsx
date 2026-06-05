@@ -4,7 +4,7 @@ import { useChartData } from "../hooks/useChartData";
 import { usePriceStream } from "../hooks/usePriceStream";
 import { Chart, type ChartHandle } from "../components/Chart";
 import { ChartToolbar } from "../components/ChartToolbar";
-import { toEtoroInterval } from "../lib/intervals";
+import { toEtoroInterval, countFor } from "../lib/intervals";
 import { liveCandle } from "../lib/chartLive";
 
 export function ChartView() {
@@ -12,7 +12,7 @@ export function ChartView() {
   const id = Number(instrumentId);
   const [tf, setTf] = useState("1d");
   const [active, setActive] = useState<Set<string>>(new Set(["MA", "VOL"]));
-  const { data, isLoading, isError } = useChartData(id, toEtoroInterval(tf));
+  const { data, isLoading, isError } = useChartData(id, toEtoroInterval(tf), countFor(tf));
   const stream = usePriceStream();
   const chartRef = useRef<ChartHandle>(null);
 
