@@ -1,0 +1,17 @@
+# paper4/code/universe.py
+"""Frozen S&P 100 universe for paper4. Snapshot list; survivorship caveat in spec."""
+START = "2000-01-01"
+END = "2024-12-31"
+
+TICKERS = [
+    "AAPL","ABBV","ABT","ACN","ADBE","AIG","AMD","AMGN","AMT","AMZN",
+    "AVGO","AXP","BA","BAC","BK","BKNG","BLK","BMY","C","CAT",
+    "CHTR","CL","CMCSA","COF","COP","COST","CRM","CSCO","CVS","CVX",
+    "DHR","DIS","DOW","DUK","EMR","FDX","GD","GE","GILD","GM",
+    "GOOGL","GS","HD","HON","IBM","INTC","JNJ","JPM","KO","LIN",
+    "LLY","LMT","LOW","MA","MCD","MDT","MET","META","MMM","MO",
+    "MRK","MS","MSFT","NEE","NFLX","NKE","NVDA","ORCL","PEP","PFE",
+    "PG","PM","PYPL","QCOM","RTX","SBUX","SO","SPG","T","TGT",
+    "TMO","TMUS","TSLA","TXN","UNH","UNP","UPS","USB","V","VZ",
+    "WFC","WMT","XOM",
+]
