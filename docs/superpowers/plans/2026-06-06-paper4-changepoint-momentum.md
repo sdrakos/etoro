@@ -219,12 +219,16 @@ def test_severity_in_unit_interval_and_length():
 # Strategies/slow-momentum-fast-reversion/bocpd.py
 """Bayesian Online Changepoint Detection (Adams & MacKay 2007), constant hazard,
 Gaussian predictive with a Normal-Normal conjugate prior on the run mean and a
-fixed observation variance sigma2. Returns per-step break severity = P(run length=0)."""
+fixed observation variance sigma2. Returns per-step break severity = posterior
+mass on short run lengths P(r_t < kshort) — this rises sharply after a regime break
+(the run-length mass collapses to small r). NOTE: the normalized P(r_t = 0) is NOT a
+usable detector — it equals the hazard at every step by construction; the collapse of
+mass onto short run lengths is what carries the changepoint signal."""
 from __future__ import annotations
 import numpy as np
 
 
-def bocpd_gaussian(x, hazard=1/250.0, mu0=0.0, kappa0=1.0, sigma2=1.0, rmax=300):
+def bocpd_gaussian(x, hazard=1/250.0, mu0=0.0, kappa0=1.0, sigma2=1.0, rmax=300, kshort=5):
     x = np.asarray(x, dtype=float)
     T = len(x)
     R = np.zeros(rmax + 1); R[0] = 1.0       # run-length posterior
@@ -245,7 +249,7 @@ def bocpd_gaussian(x, hazard=1/250.0, mu0=0.0, kappa0=1.0, sigma2=1.0, rmax=300)
         newR[0] = cp
         newR /= (newR.sum() + 1e-300)
         R = newR
-        severity[t] = R[0]
+        severity[t] = R[:kshort].sum()       # mass on short run lengths = break severity
 
         new_sums = np.zeros(rmax + 1); new_counts = np.zeros(rmax + 1)
         new_sums[1:] = sums[:-1] + x[t]
