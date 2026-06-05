@@ -16,7 +16,12 @@ describe("indicators", () => {
   it("paramLabels + klineStyles + INDICATORS", () => {
     expect(paramLabels("RSI")).toEqual(["RSI1", "RSI2", "RSI3"]);
     expect(paramLabels("MACD")).toEqual(["Short", "Long", "Signal"]);
-    expect(klineStyles(["#f00", "#0f0"])).toEqual({ lines: [{ color: "#f00" }, { color: "#0f0" }] });
+    expect(klineStyles(["#f00", "#0f0"])).toEqual({
+      lines: [
+        { show: true, size: 1, style: "solid", smooth: false, color: "#f00", dashedValue: [2, 2] },
+        { show: true, size: 1, style: "solid", smooth: false, color: "#0f0", dashedValue: [2, 2] },
+      ],
+    });
     expect(INDICATORS).toContain("KDJ");
     expect(INDICATORS).toHaveLength(7);
   });

@@ -34,6 +34,19 @@ export function paramLabels(name: string): string[] {
   return DEFS[name]?.labels ?? [];
 }
 
-export function klineStyles(colors: string[]): { lines: { color: string }[] } {
-  return { lines: colors.map((color) => ({ color })) };
+export interface KlineLineStyle {
+  show: boolean;
+  size: number;
+  style: string;
+  smooth: boolean;
+  color: string;
+  dashedValue: number[];
+}
+
+export function klineStyles(colors: string[]): { lines: KlineLineStyle[] } {
+  return {
+    lines: colors.map((color) => ({
+      show: true, size: 1, style: "solid", smooth: false, color, dashedValue: [2, 2],
+    })),
+  };
 }

@@ -12,6 +12,12 @@ interface Props {
 const tabBtn =
   "rounded-t-md px-3 py-1.5 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-accent-blue/70";
 
+// Preset swatches — avoids the clunky native OS color picker that pops over the modal.
+const SWATCHES = [
+  "#EFB90B", "#935EBD", "#2962FF", "#E5436F", "#26A69A", "#EF5350",
+  "#FF9800", "#42A5F5", "#66BB6A", "#EC407A", "#AB47BC", "#FFFFFF",
+];
+
 export function IndicatorSettingsModal({ name, config, onApply, onReset, onClose }: Props) {
   const [tab, setTab] = useState<"inputs" | "style">("inputs");
   const labels = paramLabels(name);
@@ -70,16 +76,28 @@ export function IndicatorSettingsModal({ name, config, onApply, onReset, onClose
                 </label>
               ))
             : config.colors.map((c, i) => (
-                <label key={i} className="flex items-center justify-between gap-3 text-sm">
-                  <span className="text-fg-muted">Line {i + 1}</span>
-                  <input
-                    type="color"
-                    aria-label={`Line ${i + 1} color`}
-                    value={c}
-                    onChange={(e) => setColor(i, e.target.value)}
-                    className="h-7 w-12 rounded border border-border-default bg-transparent"
-                  />
-                </label>
+                <div key={i} className="flex items-start justify-between gap-3 text-sm">
+                  <span className="mt-1 text-fg-muted">Line {i + 1}</span>
+                  <div className="flex max-w-[12rem] flex-wrap justify-end gap-1.5">
+                    {SWATCHES.map((sw) => (
+                      <button
+                        key={sw}
+                        type="button"
+                        aria-label={`Line ${i + 1} color ${sw}`}
+                        aria-pressed={c.toLowerCase() === sw.toLowerCase()}
+                        onClick={() => setColor(i, sw)}
+                        style={{ backgroundColor: sw }}
+                        className={[
+                          "h-5 w-5 rounded-full border outline-none transition-transform hover:scale-110",
+                          "focus-visible:ring-2 focus-visible:ring-accent-blue/70",
+                          c.toLowerCase() === sw.toLowerCase()
+                            ? "border-white ring-2 ring-accent-blue"
+                            : "border-border-default",
+                        ].join(" ")}
+                      />
+                    ))}
+                  </div>
+                </div>
               ))}
         </div>
 

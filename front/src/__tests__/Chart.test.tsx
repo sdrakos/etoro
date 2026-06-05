@@ -25,7 +25,8 @@ describe("Chart", () => {
     const chart = (init as unknown as { mock: { results: { value: any }[] } }).mock.results[0].value;
     const values = chart.createIndicator.mock.calls.map((c: any[]) => c[0]);
     const ma = values.find((v: any) => v.name === "MA");
-    expect(ma).toEqual({ name: "MA", calcParams: [5, 10], styles: { lines: [{ color: "#fff" }, { color: "#000" }] } });
+    const ln = (color: string) => ({ show: true, size: 1, style: "solid", smooth: false, color, dashedValue: [2, 2] });
+    expect(ma).toEqual({ name: "MA", calcParams: [5, 10], styles: { lines: [ln("#fff"), ln("#000")] } });
     expect(values.some((v: any) => v.name === "VOL")).toBe(true);
   });
 
@@ -34,7 +35,8 @@ describe("Chart", () => {
     const chart = (init as unknown as { mock: { results: { value: any }[] } }).mock.results[0].value;
     rerender(<Chart candles={candles} indicators={[cfg("RSI", [21], ["#f00"])]} />);
     const last = chart.overrideIndicator.mock.calls.at(-1);
-    expect(last[0]).toEqual({ name: "RSI", calcParams: [21], styles: { lines: [{ color: "#f00" }] } });
+    const ln = (color: string) => ({ show: true, size: 1, style: "solid", smooth: false, color, dashedValue: [2, 2] });
+    expect(last[0]).toEqual({ name: "RSI", calcParams: [21], styles: { lines: [ln("#f00")] } });
     expect(last[1]).toBe("pane_1");
   });
 });

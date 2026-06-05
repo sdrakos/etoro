@@ -23,13 +23,12 @@ describe("IndicatorSettingsModal", () => {
     expect(onApply).toHaveBeenLastCalledWith({ name: "RSI", calcParams: [9, 12, 24], colors: cfg.colors });
   });
 
-  it("switches to the Style tab and edits a color", async () => {
+  it("switches to the Style tab and picks a swatch color", async () => {
     const { onApply } = setup();
     await userEvent.click(screen.getByRole("button", { name: "Style" }));
-    const color = screen.getByLabelText("Line 1 color");
-    fireEvent.change(color, { target: { value: "#ff0000" } });
+    await userEvent.click(screen.getByRole("button", { name: "Line 1 color #2962FF" }));
     expect(onApply).toHaveBeenLastCalledWith(
-      { name: "RSI", calcParams: cfg.calcParams, colors: ["#ff0000", "#bbbbbb", "#cccccc"] });
+      { name: "RSI", calcParams: cfg.calcParams, colors: ["#2962FF", "#bbbbbb", "#cccccc"] });
   });
 
   it("fires reset and close", async () => {

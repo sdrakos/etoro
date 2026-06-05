@@ -50,16 +50,20 @@ export const Chart = forwardRef<ChartHandle, Props>(function Chart({ candles, in
     }
 
     for (const cfg of indicators) {
-      const value = { name: cfg.name, calcParams: cfg.calcParams, styles: klineStyles(cfg.colors) } as IndicatorCreate;
+      const styles = klineStyles(cfg.colors);
       const sig = JSON.stringify({ p: cfg.calcParams, c: cfg.colors });
       const existing = tracked.current.get(cfg.name);
       if (!existing) {
+        const create = { name: cfg.name, calcParams: cfg.calcParams, styles } as IndicatorCreate;
         const paneId = MAIN_OVERLAYS.includes(cfg.name)
-          ? chart.createIndicator(value, false, { id: "candle_pane" })
-          : chart.createIndicator(value);
+          ? chart.createIndicator(create, false, { id: "candle_pane" })
+          : chart.createIndicator(create);
         if (paneId) tracked.current.set(cfg.name, { paneId, sig });
       } else if (existing.sig !== sig) {
-        chart.overrideIndicator(value, existing.paneId);
+        chart.overrideIndicator(
+          { name: cfg.name, calcParams: cfg.calcParams, styles } as IndicatorCreate,
+          existing.paneId,
+        );
         tracked.current.set(cfg.name, { paneId: existing.paneId, sig });
       }
     }
