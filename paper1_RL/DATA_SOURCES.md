@@ -23,15 +23,19 @@ local skills, και το `back/.env` (single secrets store). Όπου εξαρ�
 | **Hugging Face** | Authenticated ως `sdrakos` (MCP) | NLP models + datasets για sentiment σε news/transcripts | n/a (modeling layer) |
 | **eToro Public API** | `ETORO_*` keys στο `back/.env` + `etoro-api` skill | Prices/candles, portfolio, execution | Execution layer, όχι research estimates |
 
-## 2. 🟡 Connector υπάρχει — θέλει μόνο login (one-click OAuth μέσω `/mcp`)
+## 2. 🔴 Institutional connectors — OAuth πάνω σε ΥΠΑΡΧΟΝ paid account (όχι self-serve)
 
-| Source | Γιατί αξίζει | Κατάσταση |
+> **Επιβεβαιωμένο 2026-06-05:** το `/mcp` → S&P Global **δεν δίνει register** — το OAuth
+> συνδέει υπάρχοντα S&P Global Capital IQ λογαριασμό, δεν είναι signup. Χωρίς institutional
+> συνδρομή, **μη προσβάσιμο**. Το ίδιο για τους υπόλοιπους παρόχους παρακάτω.
+
+| Source | Γιατί θα άξιζε | Πραγματική κατάσταση |
 |---|---|---|
-| **S&P Global / Capital IQ (Kensho)** ⭐ | **Το πιο πολύτιμο**: point-in-time consensus, estimate revisions, surprise, timestamp ανά αλλαγή, ιστορικό από 1996 — ακριβώς το PEAD/revisions institutional-grade | Connector = `kfinance.kensho.com`. Εκτίθεται **μόνο** ως `authenticate` → **όχι authed**. Auth = user-driven: `/mcp` → "claude.ai S&P Global" → browser authorize. **Το #1 action.** |
-| **FactSet, Morningstar, Moody's, Pitchbook, LSEG, Daloopa, Aiera, Chronograph, Egnyte** | Estimates / fundamentals / transcripts institutional | Όλα μέσω `financial-analysis` plugin, **OAuth-gated**, όχι authed. Χρειάζεται login **και** λογαριασμό στον πάροχο |
-| **Interactive Brokers (IBKR)** | Multi-asset market data + execution (cross-asset σήματα) | `authenticate` only → όχι authed |
-| **LunarCrush** | Social/sentiment (έχει `stocks` tool) = ορθογώνια text modality | Εκθέτει data tools **και** `auth` — πιθανώς usable, θέλει επιβεβαίωση |
-| **Explorium** | Business / alternative data | Tools εκτίθενται με `show-pricing-plans` / `estimate-cost` → **metered / paid** |
+| **S&P Global / Capital IQ (Kensho)** | PiT consensus, estimate revisions, surprise, ιστορικό από 1996 — institutional-grade PEAD | 🔴 Θέλει **Capital IQ subscription**· το OAuth δεν εγγράφει. Όχι προσβάσιμο |
+| **FactSet, Morningstar, Moody's, Pitchbook, LSEG, Daloopa, Aiera, Chronograph, Egnyte** | Estimates / fundamentals / transcripts | 🔴 OAuth πάνω σε paid account του παρόχου — δεν τα έχεις |
+| **Interactive Brokers (IBKR)** | Multi-asset market data + execution | 🟡 Θέλει IBKR λογαριασμό (αν έχεις, self-serve signup διαθέσιμο) |
+| **LunarCrush** | Social/sentiment (`stocks` tool) = ορθογώνια text modality | 🟡 Εκθέτει data tools + `auth`· LunarCrush έχει free/φθηνό tier — θέλει επιβεβαίωση |
+| **Explorium** | Business / alternative data | 🟠 Metered / paid (`show-pricing-plans`) |
 
 ## 3. 🟠 Θέλουν συνδρομή / API key (ΔΕΝ είναι ρυθμισμένα)
 
@@ -48,20 +52,29 @@ Bloomberg «Company Financials, Estimates and Pricing Point-in-Time» (2024), I/
 
 ---
 
-## Πρακτικό συμπέρασμα — φθηνότερος τίμιος δρόμος για το πρώτο πραγματικό PEAD σήμα
+## Πρακτικό συμπέρασμα — ο ΡΕΑΛΙΣΤΙΚΟΣ δρόμος (αφού τα institutional είναι κλειστά)
 
-| Ανάγκη | Πηγή | Κατάσταση |
+Επειδή S&P Global / FactSet / Morningstar **δεν είναι προσβάσιμα** (θέλουν paid account),
+ο τίμιος δρόμος αλλάζει: **δεν χρειάζεσαι analyst estimates για ένα πραγματικό PEAD.**
+
+> **Key insight:** το κλασικό PEAD (Bernard-Thomas 1989· Foster-Olsen-Shevlin 1984) ορίζει
+> το SUE με **seasonal random walk**, ΟΧΙ με analyst consensus:
+> `SUE = (EPS_q − EPS_{q−4}) / σ(ΔEPS)`. Όλα τα συστατικά είναι **actuals** που υπάρχουν
+> στο **SEC EDGAR** (PiT, με filing date). Έτσι παρακάμπτεται όλο το πρόβλημα estimates.
+
+| Ανάγκη | Ρεαλιστική πηγή | Κατάσταση |
 |---|---|---|
-| Actuals + ημερομηνίες ανακοίνωσης | SEC EDGAR ή Massive/Polygon | 🟢 διαθέσιμα |
-| **Consensus estimates PiT** (το κενό) | **S&P Global** (αν το tier το δίνει) · αλλιώς Sharadar/FMP | 🟡 login · 🟠 key |
-| **Survivorship-free universe** | Sharadar (ιστορικά μέλη δείκτη) | 🟠 key — κανένα 🟢 δεν το λύνει |
-| Sentiment (2ο, ορθογώνιο σήμα) | LunarCrush + Hugging Face NLP πάνω σε Polygon news | 🟢/🟡 |
+| Actuals (EPS ανά τρίμηνο) + filing dates | **SEC EDGAR** (companyconcept/companyfacts API) | 🟢 δωρεάν, PiT |
+| **PEAD signal (SUE)** | seasonal-random-walk πάνω στα EDGAR actuals — **κανένα estimate** | 🟢 δωρεάν, PiT |
+| Estimate-revisions signal (προαιρετικό 2ο) | FMP (φθηνό key) — όχι institutional | 🟠 key |
+| **Survivorship-free universe** | Sharadar (ιστορικά μέλη δείκτη) ή as-traded constituent lists | 🟠 key — κανένα 🟢 δεν το λύνει πλήρως |
+| Sentiment (ορθογώνιο σήμα) | LunarCrush + Hugging Face NLP πάνω σε Polygon news | 🟢/🟡 |
 
-**Δύο highest-value actions:**
-1. **Authenticate S&P Global** (`/mcp` → claude.ai S&P Global) — αποκαλύπτει αν το tier σου
-   εκθέτει Capital IQ Estimates, που λύνει το δυσκολότερο: PiT consensus / revisions.
-2. **Ένα Sharadar API key** — μόνο αυτό λύνει το **survivorship bias** που το DER paper
-   παραδέχτηκε ως αδυναμία στα free data (§sec:alpha-oos caveats).
+**Δύο highest-value actions (αναθεωρημένα):**
+1. **SUE από SEC EDGAR** — το πρώτο πραγματικό, PiT, look-ahead-free PEAD σήμα με **μόνο
+   δωρεάν data**. Αντικαθιστά τα Yahoo current-snapshot surprises (η αδυναμία του paper).
+2. **Ένα Sharadar key** (~φθηνό) — το μόνο που λύνει το **survivorship bias** (§sec:alpha-oos
+   caveat). Δευτερεύον αλλά απαραίτητο πριν από οποιοδήποτε alpha claim.
 
-**Το μη-διαπραγματεύσιμο:** ό,τι κι αν επιλεγεί → **point-in-time + survivorship-controlled**.
-Αυτά τα δύο ξεχωρίζουν ένα πραγματικό σήμα από ένα backtest-φάντασμα.
+**Το μη-διαπραγματεύσιμο:** point-in-time + survivorship-controlled. Με EDGAR + Sharadar τα
+έχεις και τα δύο — χωρίς institutional συνδρομή.
