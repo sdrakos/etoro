@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
-import { init, dispose } from "klinecharts";
+import { init, dispose, type IndicatorCreate } from "klinecharts";
 import type { Candle } from "../types/chart";
 import { klineStyles, type IndicatorConfig } from "../lib/indicators";
 
@@ -50,7 +50,7 @@ export const Chart = forwardRef<ChartHandle, Props>(function Chart({ candles, in
     }
 
     for (const cfg of indicators) {
-      const value = { name: cfg.name, calcParams: cfg.calcParams, styles: klineStyles(cfg.colors) };
+      const value = { name: cfg.name, calcParams: cfg.calcParams, styles: klineStyles(cfg.colors) } as IndicatorCreate;
       const sig = JSON.stringify({ p: cfg.calcParams, c: cfg.colors });
       const existing = tracked.current.get(cfg.name);
       if (!existing) {
