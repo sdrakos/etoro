@@ -17,6 +17,7 @@ local skills, και το `back/.env` (single secrets store). Όπου εξαρ�
 
 | Source | Πρόσβαση | Τι δίνει | PiT / Survivorship |
 |---|---|---|---|
+| **Finnhub** ⭐ | `FINNHUB_API_KEY` στο `back/.env` (free tier, 60 calls/min) | EPS estimate+actual+**surprise** + earnings calendar + recommendation trends + price target | ⚠️ **Free = μόνο 4 τρίμηνα EPS surprises** (επιβεβαιωμένο)· καλό για **live/forward** PEAD, **όχι** historical backtest. 20+yr ιστορικό = All-In-One **$3500/μήνα** 🔴 |
 | **Massive / Polygon** | `MASSIVE_KEY` στο `back/.env` + `massive-api-skill` | Actuals, fundamentals, SEC filings, news/sentiment, corporate actions, short interest. **Όχι consensus estimates** | News timestamped (PiT-ish)· free tier ~2y / 5-calls-min |
 | **SEC EDGAR** | Δωρεάν, μέσω `financial-analyst` skill | Earnings actuals + **ημερομηνία κατάθεσης** = PiT εξ ορισμού | ✅ PiT · ❌ survivorship |
 | **Yahoo (yfinance)** | Δωρεάν, `trader/` + `value-stock-analyzer` | Prices, earnings surprise (current snapshot) | ❌ snapshot · ❌ survivorship — **η γνωστή αδυναμία του paper** |
@@ -42,7 +43,9 @@ local skills, και το `back/.env` (single secrets store). Όπου εξαρ�
 | Source | Τι λύνει | Κόστος |
 |---|---|---|
 | **Sharadar** (Nasdaq Data Link) | **PiT fundamentals από 1990 + survivorship-free index membership από 1957** — λύνει ΚΑΙ τα δύο μη-διαπραγματεύσιμα | Προσιτό· χρειάζεται API key (δεν υπάρχει στο `.env`) |
-| **FMP** (Financial Modeling Prep) | Analyst estimates + revisions (earnings momentum) | Φθηνό, με PiT caveats → θέλει επαλήθευση |
+| **FMP** (Financial Modeling Prep) | Analyst estimates + **revisions** (earnings momentum), self-serve | Φθηνά tiers, με PiT caveats → θέλει επαλήθευση |
+| **EODHD** (eodhd.com, EU/Lyon) | 30+ χρόνια fundamentals, 60+ exchanges (EU coverage) | Φθηνά tiers, self-serve |
+| **Finnhub All-In-One** | 20+yr EPS surprises/estimates (το βαθύ ιστορικό) | 🔴 **$3500/μήνα** — μόνο σε κλίμακα |
 | **FRED** | Macro / cross-asset (rates, spreads, CPI) | Δωρεάν, θέλει free API key (ή public CSV) |
 
 ## 4. 🔴 Institutional / εκτός εμβέλειας
@@ -66,6 +69,7 @@ Bloomberg «Company Financials, Estimates and Pricing Point-in-Time» (2024), I/
 |---|---|---|
 | Actuals (EPS ανά τρίμηνο) + filing dates | **SEC EDGAR** (companyconcept/companyfacts API) | 🟢 δωρεάν, PiT |
 | **PEAD signal (SUE)** | seasonal-random-walk πάνω στα EDGAR actuals — **κανένα estimate** | 🟢 δωρεάν, PiT |
+| **Live/forward** consensus + surprise | **Finnhub free** (4 τρίμηνα — μαζεύεις τρίμηνο-τρίμηνο από εδώ & μπρος) | 🟢 key stored |
 | Estimate-revisions signal (προαιρετικό 2ο) | FMP (φθηνό key) — όχι institutional | 🟠 key |
 | **Survivorship-free universe** | Sharadar (ιστορικά μέλη δείκτη) ή as-traded constituent lists | 🟠 key — κανένα 🟢 δεν το λύνει πλήρως |
 | Sentiment (ορθογώνιο σήμα) | LunarCrush + Hugging Face NLP πάνω σε Polygon news | 🟢/🟡 |
