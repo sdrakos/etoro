@@ -60,10 +60,28 @@ def _ffill(close):
     return out
 
 
-def backtest_rules(close, capital=10000.0, target_vol=0.10, long_only=False):
+def _trailing_vol(net, method, window=63, ewma_window=126):
+    """Causal (no look-ahead) annualized vol of the daily return stream `net`.
+    At day t it uses ONLY returns strictly before t, so it is usable live.
+    method='rolling' -> equal-weight trailing `window` days;
+    method='ewma'    -> recency-weighted over trailing `ewma_window` days."""
+    from sizing import realized_vol
+    T = len(net)
+    vol = np.full(T, np.nan)
+    win = ewma_window if method == "ewma" else window
+    for t in range(win, T):
+        vol[t] = realized_vol(net[t - win:t], method=method)
+    return vol
+
+
+def backtest_rules(close, capital=10000.0, target_vol=0.10, long_only=False, vol_method="static"):
     """Rules time-series momentum on a (T,N) close matrix, net of 5bps. Returns dict + equity.
     target_vol is the risk dial (the return stream is scaled to this annual volatility);
-    long_only=True keeps only the up-trends (drops the short legs)."""
+    long_only=True keeps only the up-trends (drops the short legs).
+    vol_method controls HOW the scaling vol is measured:
+      'static'  -> whole-period std (illustration; mild look-ahead, Sharpe-invariant);
+      'rolling' -> causal trailing 63-day std (matches the live engine, no look-ahead);
+      'ewma'    -> causal recency-weighted vol (reacts faster to a volatility spike)."""
     close = _ffill(close)
     T, N = close.shape
     W = build_ts_weights(close)
@@ -72,18 +90,21 @@ def backtest_rules(close, capital=10000.0, target_vol=0.10, long_only=False):
     fwd = np.zeros((T, N)); fwd[:-1] = close[1:] / close[:-1] - 1.0
     net = net_returns(W, fwd, spread_bps=5.0, short_fin_bps_annual=0.0)
     warm = 252
-    a = net[warm:T - 1]
-    a = a * (target_vol / (a.std() * np.sqrt(252) + 1e-12))
+    if vol_method == "static":
+        a = net[warm:T - 1]
+        a = a * (target_vol / (a.std() * np.sqrt(252) + 1e-12))
+    else:
+        vol = _trailing_vol(net, vol_method)                       # causal, per-day
+        lev = np.clip(target_vol / (vol + 1e-9), 0.2, 3.0)
+        a = (net * lev)[warm:T - 1]
     eq = capital * np.cumprod(1 + a)
     return {"ir": ann_ir(a), "sharpe": float(a.mean() / a.std() * np.sqrt(252)),
             "maxdd": max_drawdown(a), "final": float(eq[-1]), "n_days": len(a)}, a, eq
 
 
-def run(tickers=None, capital=10000.0, target_vol=0.10, long_only=False):
-    import json
-    import matplotlib; matplotlib.use("Agg"); import matplotlib.pyplot as plt
+def _fetch_etoro_closes(tickers):
+    """Resolve tickers -> ids, pull ~1000 daily candles each, return (close, dates, kept, id2tk)."""
     from etoro_api.server import get_server_client
-    tickers = tickers or DEFAULT
     client = get_server_client()
 
     def search(t):
@@ -108,7 +129,55 @@ def run(tickers=None, capital=10000.0, target_vol=0.10, long_only=False):
 
     close, dates, kept = build_closes(fetch_raw, ids)
     print(f"eToro prices: {len(kept)} products, {len(dates)} days ({dates[0]}..{dates[-1]})")
-    stats, _ret, eq = backtest_rules(close, capital=capital, target_vol=target_vol, long_only=long_only)
+    return close, dates, kept, id2tk
+
+
+def compare_vol_methods(tickers=None, capital=10000.0, target_vol=0.10, long_only=False):
+    """Run static / rolling / ewma vol-targeting on the SAME real eToro prices and overlay them,
+    so the difference between the volatility-estimation methods is visible. Saves a figure + JSON."""
+    import json
+    import matplotlib; matplotlib.use("Agg"); import matplotlib.pyplot as plt
+    tickers = tickers or DEFAULT
+    close, dates, kept, id2tk = _fetch_etoro_closes(tickers)
+    methods = [("static", "#9aa0a6", "Static (whole-period)"),
+               ("rolling", "#1f4e9c", "Rolling 63d (live engine)"),
+               ("ewma", "#c0392b", "EWMA (reacts faster)")]
+    results, curves = {}, {}
+    for m, _c, _lbl in methods:
+        stats, _ret, eq = backtest_rules(close, capital=capital, target_vol=target_vol,
+                                         long_only=long_only, vol_method=m)
+        results[m] = stats; curves[m] = eq
+        print(f"  {m:<8} IR {stats['ir']:+.2f}  Sharpe {stats['sharpe']:.2f}  "
+              f"maxDD {stats['maxdd']*100:+.0f}%  final EUR {stats['final']:,.0f}")
+
+    FIG = os.path.abspath(os.path.join(HERE, "..", "figures"))
+    plt.rcParams.update({"font.family": "serif", "figure.dpi": 150, "savefig.bbox": "tight"})
+    n = min(len(c) for c in curves.values())
+    d = [np.datetime64(x) for x in dates[252:252 + n]]
+    fig, ax = plt.subplots(figsize=(10, 6))
+    for m, c, lbl in methods:
+        ax.plot(d, curves[m][:n], color=c, lw=2,
+                label=f"{lbl}: EUR {results[m]['final']:,.0f} (IR {results[m]['ir']:+.2f}, "
+                      f"maxDD {results[m]['maxdd']*100:.0f}%)")
+    mode = "long-only" if long_only else "long/short"
+    ax.set_title(f"Volatility-targeting method on real eToro prices — {len(kept)} products, "
+                 f"{mode}, {target_vol*100:.0f}% target")
+    ax.set_ylabel("Account value (EUR)"); ax.grid(alpha=.3); ax.legend(fontsize=9)
+    fig.tight_layout(); fig.savefig(os.path.join(FIG, "fig_etoro_vol_methods.png")); plt.close(fig)
+    with open(os.path.join(HERE, "..", "results_etoro_vol_methods.json"), "w", encoding="utf-8") as f:
+        json.dump({"products": [id2tk[i] for i in kept], "target_vol": target_vol,
+                   "mode": mode, "methods": results}, f, indent=2)
+    print("\nSaved figures/fig_etoro_vol_methods.png + results_etoro_vol_methods.json")
+    return results
+
+
+def run(tickers=None, capital=10000.0, target_vol=0.10, long_only=False, vol_method="static"):
+    import json
+    import matplotlib; matplotlib.use("Agg"); import matplotlib.pyplot as plt
+    tickers = tickers or DEFAULT
+    close, dates, kept, id2tk = _fetch_etoro_closes(tickers)
+    stats, _ret, eq = backtest_rules(close, capital=capital, target_vol=target_vol,
+                                     long_only=long_only, vol_method=vol_method)
     mode = "long-only" if long_only else "long/short"
     print(f"\n=== eToro-prices backtest (rules, {mode}, net, {target_vol*100:.0f}% vol target) ===")
     print(f"  period   {dates[252]}..{dates[-2]}")
@@ -139,5 +208,13 @@ if __name__ == "__main__":
     ap.add_argument("--vol", type=float, default=0.10, help="risk dial: target annual volatility (e.g. 0.20)")
     ap.add_argument("--capital", type=float, default=10000.0)
     ap.add_argument("--long-only", action="store_true", help="keep only up-trends (drop the shorts)")
+    ap.add_argument("--vol-method", choices=["static", "rolling", "ewma"], default="static",
+                    help="how the scaling vol is measured (rolling/ewma are causal, live-correct)")
+    ap.add_argument("--compare-vol", action="store_true",
+                    help="overlay static vs rolling vs ewma on the same prices (one figure)")
     a = ap.parse_args()
-    run(a.tickers or None, capital=a.capital, target_vol=a.vol, long_only=a.long_only)
+    if a.compare_vol:
+        compare_vol_methods(a.tickers or None, capital=a.capital, target_vol=a.vol, long_only=a.long_only)
+    else:
+        run(a.tickers or None, capital=a.capital, target_vol=a.vol,
+            long_only=a.long_only, vol_method=a.vol_method)
