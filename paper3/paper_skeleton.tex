@@ -43,11 +43,20 @@ methodological points are central. First, the same-industry lead--lag effect is 
 with own-firm PEAD through earnings-season clustering; we separate them with a daily
 Fama--MacBeth cross-sectional regression rather than ad-hoc exclusion. Second, we treat
 \emph{durability}---the decay of edge across calendar time---as the headline diagnostic, not the
-in-sample information ratio. On real US equity data
-[\emph{universe, sample, headline} $\IR$/$t_{\mathrm{NW}}$/\emph{half-life}/\emph{durability to be inserted}], the
-combined signal achieves [\ldots]. We argue that the contribution is the evaluation protocol
-itself: a null result with correct Newey--West inference and a reported decay profile is a valid,
-publishable outcome. These results operationalize the anomalies of Bernard and Thomas (1989) and
+in-sample information ratio. On free US equity data (SEC EDGAR fundamentals and adjusted prices,
+2013--2024), every signal we test is weak and \emph{configuration-dependent}: own-firm PEAD is
+out-of-sample significant only once mid-caps are included (information ratio $0.74$, Newey--West
+$t=2.54$ on a $401$-name 2015--2024 universe) and statistically null on a mega-cap-only universe
+($t=1.20$); the same-industry lead--lag is significant on a narrow $150$-name universe ($t=2.61$)
+but vanishes on the broad universe ($t=0.10$), exposing it as a small-universe artifact; and nine
+theory-signed fundamental factors (value, quality, accruals, investment, buyback) fail the gate at
+every horizon from monthly to annual. No combination of gate-passing free-data signals is therefore
+achievable on this universe, and a fair same-panel test shows that combining a gate-\emph{failing}
+signal destroys performance---confirming that the gate, not the combiner, is what protects the book.
+We argue that the contribution is the evaluation protocol itself: a null result with correct
+Newey--West inference and a reported decay profile is a valid, publishable outcome, and that the
+binding constraint on free-data equity research is \emph{data} (depth, small-cap breadth, and
+survivorship-free membership), not the algorithm. These results operationalize the anomalies of Bernard and Thomas (1989) and
 Cohen and Frazzini (2008) under the overfitting controls of Harvey, Liu, and Zhu (2016) and Bailey
 and L\'opez de Prado (2014).
 \end{abstract}
@@ -138,8 +147,14 @@ b(k)=\frac{\sum_e z_e\,\AR_{e,k}}{\sum_e z_e^2},\qquad B(h)=\sum_{k=1}^{h}b(k).
 We fit $b(k)\approx b_0 e^{-k/\tau}$ on the leading window and report the half-life
 $t_{1/2}=\tau\ln 2$ and the horizon $h^\star$ at which marginal drift loses significance.
 
-\todo{Insert measured $b(k)$, $B(h)$, $t_{1/2}$, $h^\star$ on real data; Figure with the three
-panels (drift, cumulative, durability).}
+On the $401$-name 2015--2024 universe ($14{,}493$ in-window announcements), the measured
+per-unit-SUE marginal drift is small and noisy: $b(1){=}0.4$, $b(5){=}{-}0.6$, $b(10){=}0.4$,
+$b(20){=}1.1$, $b(40){=}{-}0.3$ basis points. The cumulative drift peaks at $h^\star{=}51$ trading
+days with $B(h^\star){=}0.075\%$ per unit SUE; the leading exponential fit does not yield a stable
+half-life (the drift is dominated by noise rather than a clean decay), which is itself the honest
+diagnostic for a weak free-data signal. The legitimate forward-looking nugget---the persistence of
+the surprise itself---is, by contrast, strongly significant: $\mathrm{corr}(\SUE_t,\SUE_{t+1})=0.17$
+($t=20.5$). The tradable price drift, not the surprise persistence, is what fails to clear the bar.
 
 \subsection{Calendar-time inference}
 Because holding windows overlap and announcements cluster in earnings season, event-time standard
@@ -159,8 +174,15 @@ and treat the time series $\{\beta^{\mathrm{peer}}_d\}$ as the lead--lag factor 
 MacBeth, 1973), with Newey--West inference. The own coefficient absorbs PEAD, isolating the
 genuine cross-firm effect.
 
-\todo{Report $\IR$/$t_{\mathrm{NW}}$ of $\beta^{\mathrm{peer}}$ with vs.\ without the own control;
-the gap quantifies the confound.}
+Two facts emerge (Table~\ref{tab:leadlag}). First, controlling for own-firm PEAD barely moves the
+peer coefficient---on the narrow $150$-name universe the clean lead--lag IR is $0.72$ ($t=2.61$)
+versus a contaminated $0.70$ ($t=2.52$)---so the same-industry effect, \emph{where it appears}, is
+genuine rather than an own-PEAD artifact: the Fama--MacBeth control is necessary but not the source
+of the result. Second, and decisively, the effect is \emph{not robust to the universe}: on the broad
+$401$-name universe over the same period the clean lead--lag collapses to IR $0.03$ ($t=0.10$). The
+significant $150$-name result is thus best read as a small-universe artifact (few, tightly linked
+mega-cap peers), exactly the fragility the overfitting literature warns about; we report it as such
+rather than as a discovery.
 
 \subsection{Utility-weighted gate}
 \begin{definition}[Signal utility]\label{def:util}
@@ -173,7 +195,15 @@ The annualized utility ratio $\sqrt{252}\,\bar u/\sigma_u$ equals the informatio
 signal's dollar-neutral long--short portfolio. Hence gating on utility is equivalent to gating on
 risk-adjusted economic P\&L, not on classification accuracy.
 \end{proposition}
-\todo{One-line proof (definitional) + numerical cross-check on synthetic and real data.}
+\begin{proof}
+The daily utility $u_d=\sum_i w_{i,d}\,r_{i,d+1}$ with $\sum_i|w_{i,d}|=1$ is, by definition, the
+one-day return of the dollar-neutral long--short portfolio holding weights $w_{\cdot,d}$. Its
+annualized mean-to-standard-deviation ratio $\sqrt{252}\,\bar u/\sigma_u$ is therefore that
+portfolio's information ratio. \qedhere
+\end{proof}
+\noindent The identity is exact and was confirmed numerically on both the synthetic harness and the
+real panels (the gate's utility ratio and the engine's calendar-time IR agree to floating-point
+tolerance).
 A signal passes if its out-of-sample $\IR>0$, $|t_{\mathrm{NW}}|\ge t^\star$ (default $t^\star=2$,
 with the Deflated Sharpe Ratio and PBO reported alongside), and its late-subsample $\IR$ does not
 collapse.
@@ -206,26 +236,126 @@ cation thresholds are fixed in advance.
 
 \section{Results}
 \label{sec:results}
-\todo{Tables: (1) per-signal gate table (IR, $t_{\mathrm{NW}}$, mean IC, early/late IR, DSR, PBO);
-(2) lead--lag with/without own control; (3) combined book raw vs.\ regime-scaled (IR, vol, maxDD);
-(4) durability by year. Figures: drift/decay, lead--lag cumulative + durability, engine equity +
-exposure multiplier. Insert real-data numbers; synthetic validation figures may appear in an
-appendix as estimator sanity checks, clearly labeled as such.}
+All numbers are out-of-sample on free data (SEC EDGAR fundamentals, adjusted prices). Drift and
+lead--lag figures are reproducible from the released engine; we report the headline statistics here.
+
+\paragraph{Own-firm PEAD is real but universe-dependent.}
+Table~\ref{tab:pead} runs own-firm PEAD (sector-neutral) across three configurations. It is
+statistically null on a mega-cap-only universe and on a short early window, but clears the gate once
+mid-caps are included over the longer window (IR $0.74$, $t=2.54$)---consistent with the textbook
+fact that PEAD is concentrated in smaller, less-covered firms. The surprise persistence is strongly
+significant throughout; it is the tradable \emph{price} drift, not the surprise itself, that is marginal.
+
+\begin{table}[h]\centering
+\begin{tabular}{llrrrr}
+\toprule
+Universe & Period & Events & OOS IR & $t_{\mathrm{NW}}$ & SUE-pers.\ $t$ \\
+\midrule
+150 mega-cap & 2015--2024 & $7{,}377$ & $0.40$ & $1.20$ & $7.9$ \\
+470 broad    & 2013--2018 & $6{,}648$ & $0.21$ & $0.61$ & $12.9$ \\
+401 broad    & 2015--2024 & $14{,}493$ & $\mathbf{0.74}$ & $\mathbf{2.54}$ & $20.5$ \\
+\bottomrule
+\end{tabular}
+\caption{Own-firm PEAD, sector-neutral, out-of-sample at $h=h^\star$. Significant only on the broad,
+mid-cap-inclusive, longer-sample configuration. Durability trend on the 401 universe is flat
+($-0.006$/yr); win rate $53.8\%$ ($+7.6$/$-7.4$ bp average win/loss), $\approx 334$ names traded per day.}
+\label{tab:pead}
+\end{table}
+
+\paragraph{Same-industry lead--lag is fragile.}
+Table~\ref{tab:leadlag} shows the Fama--MacBeth peer coefficient with and without the own-PEAD
+control. The clean$\,\approx\,$contaminated gap is small, so where the effect appears it is genuine,
+not an own-PEAD artifact---but it appears \emph{only} on the narrow $150$-name universe and vanishes
+on the broad one. We read the significant result as a small-universe artifact and report it as such.
+
+\begin{table}[h]\centering
+\begin{tabular}{llrrrr}
+\toprule
+ & & \multicolumn{2}{c}{clean (controls own)} & \multicolumn{2}{c}{contaminated} \\
+\cmidrule(lr){3-4}\cmidrule(lr){5-6}
+Universe & Period & IR & $t_{\mathrm{NW}}$ & IR & $t_{\mathrm{NW}}$ \\
+\midrule
+150 mega-cap & 2015--2024 & $0.72$ & $2.61$ & $0.70$ & $2.52$ \\
+470 broad    & 2013--2018 & $0.90$ & $1.89$ & $0.89$ & $1.88$ \\
+401 broad    & 2015--2024 & $0.03$ & $0.10$ & $0.04$ & $0.13$ \\
+\bottomrule
+\end{tabular}
+\caption{Same-industry lead--lag (market-neutral, Fama--MacBeth, $h=60$). The own-PEAD control barely
+moves the peer coefficient; the effect is not robust to the universe.}
+\label{tab:leadlag}
+\end{table}
+
+\paragraph{Fundamental factors fail the gate at every horizon.}
+Table~\ref{tab:fund} passes nine theory-signed fundamental factors through the same gate on the
+$401$-name universe at a monthly horizon. None clears $|t|>2$, and the verdict is unchanged at
+quarterly, semiannual, and annual horizons. The one nominal annual ``pass'' (ROE, $t=-2.28$) is
+\emph{wrong-signed} relative to theory and rests on only $n=3$ non-overlapping annual observations,
+so we discard it: a $t$-statistic on three points is not evidence.
+
+\begin{table}[h]\centering
+\begin{tabular}{lrr}
+\toprule
+Factor (theory-signed) & IC & $t_{\mathrm{NW}}$ \\
+\midrule
+gross-profits-to-assets (quality) & $-0.012$ & $-0.61$ \\
+accruals (low $=$ good)           & $0.004$  & $0.29$  \\
+asset growth (investment)         & $-0.018$ & $-1.11$ \\
+net margin                        & $-0.007$ & $-1.03$ \\
+return on equity                  & $0.005$  & $0.55$  \\
+operating margin                  & $-0.007$ & $-0.87$ \\
+debt-to-equity (low $=$ good)     & $-0.008$ & $-0.87$ \\
+buyback (share count, $\downarrow$) & $-0.004$ & $-0.51$ \\
+book-to-price (value)             & $0.006$  & $0.85$  \\
+\bottomrule
+\end{tabular}
+\caption{Fundamental factors through the gate ($401$ names, 2015--2024, monthly horizon). None clears
+$|t|>2$; unchanged at $63/126/252$-day horizons. The sample spans the documented ``value winter'' and
+contains only $\sim 3$ independent annual observations---too short to test slow factors, which is
+itself a finding (see Section~\ref{sec:scope}).}
+\label{tab:fund}
+\end{table}
+
+\paragraph{The gate, not the combiner, protects the book.}
+A fair same-panel test combines own-PEAD with an external belief-state momentum signal (Kalman local
+linear trend $+$ Bayesian changepoint), both net of spread and short financing. On the $401$-name
+panel the momentum leg is significantly \emph{negative} (IR $-1.06$, $t=-3.19$), own-PEAD net is
+$\approx 0$, and the two are essentially orthogonal ($\rho=-0.02$); the risk-parity combination is
+therefore dragged to IR $-0.79$. Combining a gate-\emph{failing} signal destroys performance exactly
+as the diversification algebra predicts---confirming that the gate, not the combiner, is what protects
+the book, and that no admissible second signal was found on this free-data universe.
 
 \section{Scope and limitations}
 \label{sec:scope}
-Free daily data caps achievable edge; results are expected to be weak and possibly null, and we
-report them as such. Time-series $\SUE$ avoids analyst-consensus dependence but omits the
-revision channel. The same-industry map (SIC) is coarse relative to true supply-chain links; the
-lead--lag effect is the more fragile of the two signals and most exposed to spurious structure.
-Point-in-time fidelity depends on XBRL coverage (broadly complete only from about 2011).
+Free daily data caps achievable edge; results are weak and, for most signals, null---we report them
+as such. Time-series $\SUE$ avoids analyst-consensus dependence but omits the revision channel. The
+same-industry map (SIC) is coarse relative to true supply-chain links; the lead--lag effect is the
+more fragile of the two signals and most exposed to spurious structure. Point-in-time fidelity
+depends on XBRL coverage (broadly complete only from about 2011).
+
+\paragraph{The binding constraint is data, not method.} Our results converge on a single,
+uncomfortable conclusion: the limiting factor is not the algorithm but the dataset. (i) \emph{Depth}:
+the only freely available consensus-free history begins around 2011, giving $\sim 3$ independent
+annual observations over 2015--2024---too few to test slow fundamental factors, whatever their
+horizon. (ii) \emph{Breadth}: PEAD and the lead--lag are strongest in small, less-covered firms, yet
+our liquid free-data universe is large-cap-tilted, where the premia are weakest. (iii)
+\emph{Survivorship}: a freely assembled universe contains today's survivors, which inflates any
+backtest; an honest test needs as-traded historical index membership. Each of these is resolved only
+by a point-in-time, survivorship-free, small-cap-inclusive, multi-decade source (e.g.\ CRSP or
+Sharadar). With such data the same pipeline---unchanged---can be re-run; without it, a candid null is
+the correct scientific report.
 
 \section{Conclusion}
 \label{sec:conclusion}
 The pipeline turns two classical, mechanism-backed anomalies into point-in-time, free-data signals,
-separates a genuine cross-firm effect from its own-firm confound, combines weak signals by risk
-parity, and sizes the result by regime---while making honest, durability-centered evaluation the
-core deliverable. The value is reproducible methodology, whatever the sign of the final result.
+separates a genuine cross-firm effect from its own-firm confound, gates signals on economic P\&L,
+combines survivors by risk parity, and sizes the result by regime---while making honest,
+durability-centered evaluation the core deliverable. Run on free US equity data, it delivers a
+clean empirical verdict: own-firm PEAD survives only on a broad, mid-cap-inclusive universe
+(IR $0.74$, $t=2.54$); the same-industry lead--lag is a small-universe artifact; fundamental factors
+are null at every horizon; and no admissible combination exists on this data. The binding constraint
+is data depth, breadth, and survivorship-control---not the method. The value is a reproducible
+protocol that reports a correctly-inferred null as the legitimate result it is, and that is ready to
+re-run, unchanged, the day better data is available.
 
 \begin{thebibliography}{99}
 \small
