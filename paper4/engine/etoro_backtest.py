@@ -60,11 +60,15 @@ def _ffill(close):
     return out
 
 
-def backtest_rules(close, capital=10000.0, target_vol=0.10):
-    """Rules time-series momentum on a (T,N) close matrix, net of 5bps. Returns dict + equity."""
+def backtest_rules(close, capital=10000.0, target_vol=0.10, long_only=False):
+    """Rules time-series momentum on a (T,N) close matrix, net of 5bps. Returns dict + equity.
+    target_vol is the risk dial (the return stream is scaled to this annual volatility);
+    long_only=True keeps only the up-trends (drops the short legs)."""
     close = _ffill(close)
     T, N = close.shape
     W = build_ts_weights(close)
+    if long_only:
+        W = np.clip(W, 0.0, None)
     fwd = np.zeros((T, N)); fwd[:-1] = close[1:] / close[:-1] - 1.0
     net = net_returns(W, fwd, spread_bps=5.0, short_fin_bps_annual=0.0)
     warm = 252
@@ -75,7 +79,7 @@ def backtest_rules(close, capital=10000.0, target_vol=0.10):
             "maxdd": max_drawdown(a), "final": float(eq[-1]), "n_days": len(a)}, a, eq
 
 
-def run(tickers=None, capital=10000.0):
+def run(tickers=None, capital=10000.0, target_vol=0.10, long_only=False):
     import json
     import matplotlib; matplotlib.use("Agg"); import matplotlib.pyplot as plt
     from etoro_api.server import get_server_client
@@ -104,8 +108,9 @@ def run(tickers=None, capital=10000.0):
 
     close, dates, kept = build_closes(fetch_raw, ids)
     print(f"eToro prices: {len(kept)} products, {len(dates)} days ({dates[0]}..{dates[-1]})")
-    stats, _ret, eq = backtest_rules(close, capital=capital)
-    print(f"\n=== eToro-prices backtest (rules, net of costs, 10% vol) ===")
+    stats, _ret, eq = backtest_rules(close, capital=capital, target_vol=target_vol, long_only=long_only)
+    mode = "long-only" if long_only else "long/short"
+    print(f"\n=== eToro-prices backtest (rules, {mode}, net, {target_vol*100:.0f}% vol target) ===")
     print(f"  period   {dates[252]}..{dates[-2]}")
     print(f"  IR {stats['ir']:+.2f}   Sharpe {stats['sharpe']:.2f}   maxDD {stats['maxdd']*100:+.0f}%"
           f"   final EUR {stats['final']:,.0f}  (from {capital:,.0f})")
@@ -128,4 +133,11 @@ def run(tickers=None, capital=10000.0):
 
 
 if __name__ == "__main__":
-    run(sys.argv[1:] or None)
+    import argparse
+    ap = argparse.ArgumentParser(description="Backtest the rules strategy on real eToro daily prices.")
+    ap.add_argument("tickers", nargs="*", help="product tickers (default: a diversified 17-ETF set)")
+    ap.add_argument("--vol", type=float, default=0.10, help="risk dial: target annual volatility (e.g. 0.20)")
+    ap.add_argument("--capital", type=float, default=10000.0)
+    ap.add_argument("--long-only", action="store_true", help="keep only up-trends (drop the shorts)")
+    a = ap.parse_args()
+    run(a.tickers or None, capital=a.capital, target_vol=a.vol, long_only=a.long_only)

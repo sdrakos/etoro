@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QUANTIQ — Αποτελέσματα Backtest</title>
+<style>
+  body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;max-width:1000px;margin:0 auto;
+       padding:24px;color:#1a1a1a;line-height:1.55;background:#fafafa}
+  h1{font-size:28px;margin-bottom:4px} h2{margin-top:38px;border-bottom:2px solid #1f4e9c;padding-bottom:6px;color:#1f4e9c}
+  h3{margin-bottom:4px}
+  .lead{font-size:17px;color:#444;background:#eef3fb;padding:14px 18px;border-radius:10px}
+  .fig{background:#fff;border:1px solid #e3e3e3;border-radius:10px;padding:14px;margin:18px 0;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+  .fig img{width:100%;height:auto;border-radius:6px}
+  .cap{font-size:14px;color:#555;margin-top:8px}
+  table{border-collapse:collapse;width:100%;margin:14px 0;background:#fff}
+  th,td{border:1px solid #ddd;padding:8px 10px;text-align:right} th{background:#1f4e9c;color:#fff}
+  td:first-child,th:first-child{text-align:left}
+  .good{color:#2a7f4f;font-weight:600} .bad{color:#c0392b;font-weight:600}
+  .note{font-size:14px;background:#fff7e6;border-left:4px solid #e08a1e;padding:10px 14px;border-radius:6px;margin:12px 0}
+  footer{margin-top:40px;color:#888;font-size:13px}
+</style>
+</head>
+<body>
+
+<h1>QUANTIQ — Αποτελέσματα Backtest</h1>
+<p class="lead">Μια στρατηγική που ακολουθεί <b>τάσεις</b> σε ένα διαφοροποιημένο καλάθι (μετοχές, ομόλογα,
+χρυσό, πετρέλαιο, δολάριο). Δουλεύει με <b>10.000€</b> και ξανα-ζυγίζει μία φορά τον μήνα. Παρακάτω
+όλα τα γραφήματα και τα νούμερα — από δοκιμές σε <b>πραγματικές τιμές eToro</b> και σε δεδομένα 17 ετών.</p>
+
+<h2>1. Δοκιμή σε ΠΡΑΓΜΑΤΙΚΕΣ τιμές eToro (τα προϊόντα σου)</h2>
+<p>17 διαφοροποιημένα ETF που υπάρχουν στο eToro, ~3 χρόνια (2023–2026), μετά κόστη.</p>
+
+<table>
+<tr><th>Εκδοχή</th><th>IR (ποιότητα)</th><th>Χειρ. πτώση</th><th>10.000€ →</th></tr>
+<tr><td>Long/Short (full)</td><td>+0.60</td><td class="bad">−14%</td><td>11.804€</td></tr>
+<tr><td><b>Long-only</b> (μόνο ανοδικά) 🏆</td><td class="good">+1.03</td><td class="bad">−15%</td><td><b>13.409€</b></td></tr>
+</table>
+<p class="note"><b>Απλά:</b> «IR» = πόσο καλό είναι το κέρδος σε σχέση με το ρίσκο (πάνω από 0.5 είναι καλό,
+πάνω από 1.0 πολύ καλό). «Χειρ. πτώση» = το χειρότερο σημείο, πόσο έπεσε ο λογαριασμός από την κορυφή.</p>
+
+<div class="fig"><img src="figures/fig_etoro_backtest.png">
+<div class="cap"><b>Εξέλιξη λογαριασμού (πραγματικές eToro τιμές).</b> Πάνω: τα 10.000€ πώς μεγάλωσαν.
+Κάτω (κόκκινο): πόσο κάτω από την κορυφή βρέθηκε κάθε στιγμή.</div></div>
+
+<div class="fig"><img src="figures/fig_etoro_longshort.png">
+<div class="cap"><b>Long/Short vs Long-only (πραγματικές eToro τιμές).</b> Το «μόνο ανοδικά» (πράσινο)
+βγήκε καλύτερο σε αυτή την ανοδική περίοδο — οι short θέσεις ήταν βάρος.</div></div>
+
+<h2>2. Πόσο κέρδος σε διαφορετικά επίπεδα ρίσκου (vol target)</h2>
+<p>Το «κουμπί ρίσκου» είναι η μεταβλητότητα-στόχος. Χαμηλό = ασφάλεια & μικρό κέρδος· υψηλό = μεγάλο
+κέρδος ΑΛΛΑ μεγαλύτερες βουτιές. (Long-only, πραγματικές eToro τιμές, 3 χρόνια.)</p>
+<table>
+<tr><th>Επίπεδο ρίσκου</th><th>Κέρδος (3 χρ.)</th><th>Ανά έτος</th><th>Χειρ. πτώση</th></tr>
+<tr><td>10% (συντηρητικό — τώρα)</td><td>+30%</td><td>+9%</td><td class="bad">−15%</td></tr>
+<tr><td>15%</td><td>+46%</td><td>+13%</td><td class="bad">−22%</td></tr>
+<tr><td>20%</td><td>+63%</td><td>+18%</td><td class="bad">−28%</td></tr>
+<tr><td>30% (επιθετικό)</td><td class="good">+98%</td><td>+26%</td><td class="bad">−40%</td></tr>
+</table>
+<p class="note"><b>Το κλειδί:</b> το κέρδος είναι <b>ανάλογο του ρίσκου</b>. Διαλέγεις εσύ με
+<code>--vol</code> (π.χ. <code>--vol 0.20</code>). Δεν υπάρχει «δωρεάν» μεγάλο κέρδος χωρίς μεγάλη πτώση.</p>
+
+<h2>3. Πώς νικάμε το «αγοράζω & κρατάω» (return stacking)</h2>
+<div class="fig"><img src="figures/fig_beat_buyhold.png">
+<div class="cap">Κρατάς όλες τις μετοχές <b>ΚΑΙ</b> προσθέτεις τη στρατηγική από πάνω (με μόχλευση) →
+ξεπερνάς το σκέτο «αγοράζω & κρατάω» (€37.390 vs €29.825, εκτός δείγματος).</div></div>
+
+<h2>4. Το ML μοντέλο (νευρωνικό LSTM)</h2>
+<div class="fig"><img src="figures/fig_ml_equity.png">
+<div class="cap">Το ML (μπλε) νικάει τον σταθερό κανόνα (πορτοκαλί) εκτός δείγματος. Το γκρι «αγοράζω &
+κρατάω SPY» έβγαλε περισσότερα σε αυτή τη bull, αλλά με πολύ μεγαλύτερο ρίσκο/βουτιές.</div></div>
+<div class="fig"><img src="figures/fig_sizing.png">
+<div class="cap">Position sizing: το «bet optimization» (κόκκινο, μόχλευση Kelly) ανεβάζει το κέρδος του ML.</div></div>
+<div class="fig"><img src="figures/fig_architecture.png">
+<div class="cap">Πώς δουλεύει το μοντέλο: 10 πληροφορίες ανά asset → LSTM → θέση από −1 (full short) έως +1 (full long).</div></div>
+
+<h2>5. Γιατί δουλεύει — η διαφοροποίηση είναι το κλειδί</h2>
+<div class="fig"><img src="figures/fig_diversification.png">
+<div class="cap">5 <b>διαφορετικά</b> πράγματα (χαμηλή συσχέτιση) νικάνε 100 <b>όμοιες</b> μετοχές. Ο συνδυασμός
+έχει καλύτερο Sharpe από κάθε κομμάτι χωριστά — το «δωρεάν γεύμα» της διαφοροποίησης.</div></div>
+<div class="fig"><img src="figures/fig_negative.png">
+<div class="cap">Η ίδια λογική είναι <b>νεκρή</b> στις μετοχές (cross-sectional) και <b>ζωντανή</b> στο
+διαφοροποιημένο καλάθι. Γι' αυτό διαλέγουμε asset classes, όχι περισσότερες μετοχές.</div></div>
+
+<h2>6. Λεπτομέρειες (δεδομένα 17 ετών, Yahoo)</h2>
+<div class="fig"><img src="figures/bt_equity.png"><div class="cap">10.000€ vs αγοράζω & κρατάω SPY (17 χρόνια).</div></div>
+<div class="fig"><img src="figures/bt_drawdown.png"><div class="cap">Πτώσεις από την κορυφή (underwater).</div></div>
+<div class="fig"><img src="figures/bt_alloc_2022crisis.png"><div class="cap">Κατανομή στο κραχ του 2022: σόρταρε σχεδόν τα πάντα, κράτησε long μόνο δολάριο & ενέργεια.</div></div>
+
+<footer>QUANTIQ / AGEL AI · paper4 · Όλα τα νούμερα είναι μετά κόστη, εκτός δείγματος. Backtest ≠ μέλλον.</footer>
+</body>
+</html>

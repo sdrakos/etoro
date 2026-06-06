@@ -51,9 +51,27 @@ def _search_fn(client):
     return search
 
 
+def _vol_target_capital(close, tickers, weights, capital, target_vol):
+    """Scale the deployed capital so the book's recent volatility hits target_vol (the risk dial).
+    Estimates the book vol from the last ~63 days at the current weights; leverage capped [0.2, 3]."""
+    import numpy as np
+    w = np.array([weights.get(tk, 0.0) for tk in tickers])
+    win = close[-64:]
+    rr = np.nan_to_num(win[1:] / win[:-1] - 1.0)
+    book_vol = float((rr @ w).std() * np.sqrt(252)) or 1e-9
+    lev = min(max(target_vol / (book_vol + 1e-9), 0.2), 3.0)
+    print(f"[vol-target {target_vol*100:.0f}%] book vol {book_vol*100:.0f}% -> leverage x{lev:.2f}"
+          f" -> deploy EUR {capital*lev:,.0f}")
+    return capital * lev
+
+
 def cmd_signal(args, do_execute=False):
-    weights = target_weights(args.strategy, fetch_close=_yahoo_fetch,
+    close, tickers = _yahoo_fetch()
+    weights = target_weights(args.strategy, fetch_close=lambda: (close, tickers),
                              model_name=args.model)
+    capital = args.capital
+    if getattr(args, "target_vol", None):
+        capital = _vol_target_capital(close, tickers, weights, args.capital, args.target_vol)
     client = _real_client()
     mp, missing = resolve(list(weights), _search_fn(client), cache=_load_cache())
     _save_cache(mp)
@@ -62,8 +80,8 @@ def cmd_signal(args, do_execute=False):
     weights = renormalize(weights, available=list(mp))
     adapter = EtoroAdapter(client, allow_execute=do_execute)
     current = adapter.positions()
-    orders = plan(current, weights, mp, capital=args.capital, min_trade=args.min_trade)
-    print(f"\nStrategy={args.strategy}  capital=EUR{args.capital:,.0f}  orders={len(orders)}")
+    orders = plan(current, weights, mp, capital=capital, min_trade=args.min_trade)
+    print(f"\nStrategy={args.strategy}  capital=EUR{capital:,.0f}  orders={len(orders)}")
     for o in orders:
         print(f"  {o.action.upper():<5} {o.ticker:<5} {'LONG' if o.is_buy else 'SHORT':<5} "
               f"EUR {o.amount_eur:>8,.0f}  ({o.reason})")
@@ -94,6 +112,9 @@ def main():
         p.add_argument("--capital", type=float, default=10000.0)
         p.add_argument("--min-trade", type=float, default=50.0)
         p.add_argument("--model", default="prod")
+        p.add_argument("--target-vol", type=float, default=None,
+                       help="risk dial: scale exposure to this annual volatility (e.g. 0.20); "
+                            "default off = deploy gross 1x")
         if name == "execute":
             p.add_argument("--execute", action="store_true")
     pr = sub.add_parser("retrain"); pr.add_argument("--model", default="prod")

@@ -39,7 +39,31 @@ scaler + meta), and saves it to `~/.etoro/models/<model>/`.
 | `--capital`  | `10000` | gross book size in EUR the weights are scaled to |
 | `--min-trade`| `50`    | suppress any order whose EUR delta is below this threshold |
 | `--model`    | `prod`  | named model under `~/.etoro/models/` (used by `ml` and `retrain`) |
+| `--target-vol` | off   | **the risk dial** — scale exposure to this annual volatility (e.g. `0.20`); see below |
 | `--execute`  | off     | (`execute` only) actually send orders to the **demo** account |
+
+## Risk level — the profit dial (`--target-vol`)
+
+How much you make is set by **how much risk you take**, and the knob is the annual-volatility
+target. In plain words: **low volatility = safer but smaller profit; high volatility = bigger profit
+but bigger drops.** The Sharpe ratio (quality of the return) stays the same — only the size changes.
+
+```bash
+python paper4/engine/cli.py signal --target-vol 0.10   # conservative (default-ish)
+python paper4/engine/cli.py signal --target-vol 0.20   # ~2x the profit AND ~2x the drawdown
+```
+
+Without `--target-vol` the engine simply deploys your full capital once (gross = 1). With it, the
+engine looks at the book's recent volatility and **levers up or down** so the realized volatility
+hits your target (capped at 3x). Example trade-off (long-only, real eToro prices, 3 years):
+
+| target vol | profit (3y) | per year | worst drop |
+|-----------:|------------:|---------:|-----------:|
+| 10% (safe) | +30% | +9% | −15% |
+| 20% | +63% | +18% | −28% |
+| 30% (aggressive) | +98% | +26% | −40% |
+
+There is **no free lunch**: more profit always comes with proportionally bigger drops.
 
 ## Safety
 
@@ -76,13 +100,32 @@ actually be traded.
 | `etoro_adapter.py`  | thin wrapper over the eToro client: read demo positions, fetch candles, submit market orders (gated by `allow_execute`). |
 | `cli.py`            | wiring: the `signal` / `execute` / `retrain` commands. |
 
+## Backtest on REAL eToro prices (`etoro_backtest.py`)
+
+Validate the strategy on the actual prices of the products you would trade (eToro daily candles
+reach ~4 years). Pick any products; missing ones are skipped.
+
+```bash
+python paper4/engine/etoro_backtest.py                     # default 17 diversified ETFs
+python paper4/engine/etoro_backtest.py SPY TLT GLD USO     # your own products
+python paper4/engine/etoro_backtest.py --long-only --vol 0.20   # long-only at 20% risk
+```
+It writes `paper4/figures/fig_etoro_backtest.png` (account value + drawdown) and
+`paper4/results_etoro_backtest.json`. On the default set (2023–2026) it returned IR ≈ 0.6
+(long/short) to ≈ 1.0 (long-only), net of costs.
+
+## See everything in one place — `dashboard.html`
+
+Open **`paper4/dashboard.html`** in a browser to view all the backtest figures and the headline
+numbers together, with plain-language captions.
+
 ## Tests
 
 ```bash
 cd paper4/engine && python -m pytest tests -q
 ```
-16 tests, fully offline (the eToro client is mocked): rebalancer 5, instrument_map 4,
-model_store 1, signal_engine 3, etoro_adapter 3.
+21 tests, fully offline (the eToro client is mocked): rebalancer 6, instrument_map 4,
+model_store 1, signal_engine 3, etoro_adapter 4, etoro_backtest 3.
 
 ## Status
 

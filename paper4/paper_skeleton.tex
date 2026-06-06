@@ -381,6 +381,31 @@ fractional Kelly is the safe operating point.}
 \label{tab:sizing}
 \end{table}
 
+\paragraph{The volatility target is the operating dial.} Because the Sharpe ratio is invariant to
+leverage, the single deployment choice that sets the return is the annualized volatility target,
+which maps one-to-one to leverage. Table~\ref{tab:voltarget} makes the trade-off explicit on the
+long-only book over the real-price out-of-sample window: total return scales essentially linearly
+with the volatility target, and so does the maximum drawdown---there is no free lunch. We report a
+$10\%$ target as the conservative default; an investor who accepts deeper drawdowns can dial it up.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{rrrr}
+\toprule
+Volatility target & Total return & Per year & Max drawdown \\
+\midrule
+$10\%$ (conservative)  & $+30\%$ & $+9\%$  & $-15\%$ \\
+$15\%$                 & $+46\%$ & $+13\%$ & $-22\%$ \\
+$20\%$                 & $+63\%$ & $+18\%$ & $-28\%$ \\
+$30\%$ (aggressive)    & $+98\%$ & $+26\%$ & $-40\%$ \\
+\bottomrule
+\end{tabular}
+\caption{Risk-level ladder (long-only, real out-of-sample prices, net of costs). Return and drawdown
+both scale roughly linearly with the volatility target; the Sharpe ratio is unchanged. The target is
+exposed in the engine as \texttt{-{}-target-vol} and in the backtester as \texttt{-{}-vol}.}
+\label{tab:voltarget}
+\end{table}
+
 \section{Scope and Limitations}
 \label{sec:scope}
 
