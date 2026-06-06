@@ -2,6 +2,7 @@
 \usepackage[margin=1in]{geometry}
 \usepackage{amsmath, mathtools, amssymb, amsthm}
 \usepackage{graphicx}
+\usepackage{tikz}\usetikzlibrary{arrows.meta,positioning}
 \usepackage{booktabs}
 \usepackage{xcolor}
 \usepackage[colorlinks=true, linkcolor=blue, citecolor=blue, urlcolor=blue]{hyperref}
@@ -92,6 +93,27 @@ open code.
 pre-register falsification thresholds and report decay explicitly. Where the evidence does not
 support a directional claim, we say so; a correctly-inferred null is reported as such.
 
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[
+  node distance=6mm and 9mm, >={Stealth[length=2.4mm]},
+  box/.style={draw, rounded corners, align=center, font=\footnotesize,
+              minimum height=8.5mm, inner sep=2pt, fill=blue!4},
+  gate/.style={box, fill=red!6}, risk/.style={box, fill=green!6}]
+\node[box] (sig) {Signals\\{\scriptsize PEAD $\cdot$ lead--lag $\cdot$ value/quality}};
+\node[gate, right=of sig] (gate) {Gate\\{\scriptsize $|t_{\mathrm{NW}}|>2$, OOS}};
+\node[box, right=of gate] (comb) {Risk-parity\\{\scriptsize combine survivors}};
+\node[risk, right=of comb] (reg) {Regime\\{\scriptsize vol-target sizing}};
+\node[box, right=of reg] (book) {Book\\{\scriptsize long--short, $\$$-neutral}};
+\draw[->] (sig)--(gate); \draw[->] (gate)--(comb); \draw[->] (comb)--(reg); \draw[->] (reg)--(book);
+\draw[->, red, dashed] (gate.south) to[out=-90,in=-90] node[below, font=\scriptsize, midway]{reject null/negative} (sig.south);
+\end{tikzpicture}
+\caption{The pipeline. Candidate signals (point-in-time, from free EDGAR data) must pass an
+economic-P\&L gate before a risk-parity combiner; a regime layer sizes the surviving book. The gate
+is what protects performance: a signal that fails it is discarded, not down-weighted.}
+\label{fig:pipeline}
+\end{figure}
+
 \section{Data and point-in-time construction}
 \label{sec:data}
 
@@ -155,6 +177,15 @@ half-life (the drift is dominated by noise rather than a clean decay), which is 
 diagnostic for a weak free-data signal. The legitimate forward-looking nugget---the persistence of
 the surprise itself---is, by contrast, strongly significant: $\mathrm{corr}(\SUE_t,\SUE_{t+1})=0.17$
 ($t=20.5$). The tradable price drift, not the surprise persistence, is what fails to clear the bar.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.97\textwidth]{figures/fig_drift.png}
+\caption{Own-firm PEAD on the $401$-name universe (2015--2024). Left: marginal drift per unit SUE,
+$b(k)$ (bp/day) --- small and noisy. Centre: cumulative drift $B(h)$, peaking at $h^\star=51$ days
+($0.075\%$ per unit SUE). Right: durability --- tradable IR by calendar year (flat trend).}
+\label{fig:drift}
+\end{figure}
 
 \subsection{Calendar-time inference}
 Because holding windows overlap and announcements cluster in earnings season, event-time standard
@@ -285,6 +316,15 @@ moves the peer coefficient; the effect is not robust to the universe.}
 \label{tab:leadlag}
 \end{table}
 
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.74\textwidth]{figures/fig_crossconfig.png}
+\caption{The central fragility result. Newey--West $t$-statistic of own-PEAD and the clean lead--lag
+across three universes. Significance \emph{flips} with the universe: own-PEAD clears the gate only on
+the broad mid-cap-inclusive universe, the lead--lag only on the narrow mega-cap one. Neither is robust.}
+\label{fig:crossconfig}
+\end{figure}
+
 \paragraph{Fundamental factors fail the gate at every horizon.}
 Table~\ref{tab:fund} passes nine theory-signed fundamental factors through the same gate on the
 $401$-name universe at a monthly horizon. None clears $|t|>2$, and the verdict is unchanged at
@@ -314,6 +354,15 @@ contains only $\sim 3$ independent annual observations---too short to test slow 
 itself a finding (see Section~\ref{sec:scope}).}
 \label{tab:fund}
 \end{table}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.82\textwidth]{figures/fig_fundamentals.png}
+\caption{Fundamental factors through the gate ($401$ names, 2015--2024, monthly horizon, theory-signed).
+Every bar is below the $|t|=2$ line: no fundamental factor clears the gate. The verdict is unchanged
+at quarterly, semiannual, and annual horizons.}
+\label{fig:fund}
+\end{figure}
 
 \paragraph{The gate, not the combiner, protects the book.}
 A fair same-panel test combines own-PEAD with an external belief-state momentum signal (Kalman local
