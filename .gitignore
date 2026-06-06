@@ -92,3 +92,6 @@ __pycache__/
 
 # but DO keep paper figures
 !paper3/figures/*.png
+
+# Bibliography PDFs are re-downloadable (download_pdfs.py) — don't bloat git
+Bibliography/intraday-dl-rl-trading/pdfs/
