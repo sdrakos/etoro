@@ -1,0 +1,303 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath, mathtools, amssymb, amsthm}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage[colorlinks=true, linkcolor=blue, citecolor=blue, urlcolor=blue]{hyperref}
+
+\theoremstyle{definition}
+\newtheorem{definition}{Definition}
+\newtheorem{remark}{Remark}
+
+\newcommand{\todo}[1]{\vspace{0.3em}\noindent\fbox{\parbox{0.95\textwidth}{\textit{\textbf{Draft note:} #1}}}\vspace{0.3em}}
+\newcommand{\IR}{\mathrm{IR}}
+\newcommand{\EUR}{EUR\,}
+
+\title{\textbf{From Dead Cross-Sectional Momentum to Belief-State Deep\\
+Time-Series Momentum:\\
+An Honest, Cost-Aware Study on a Diversified Asset Basket}}
+\author{Stefanos Drakos\\
+\small AGEL AI I.K.E., Rhodes, Greece\\
+\small ORCID: 0000-0001-7417-2444}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We study momentum trading through the lens of honest, cost-aware, out-of-sample evaluation,
+and report a deliberately two-sided result. First, a \emph{negative}: on US large-cap equities
+(S\&P~100/500), cross-sectional momentum---ranking names against one another---is dead net of
+realistic costs over 2006--2024, and a Bayesian online changepoint overlay does not revive it.
+Second, a \emph{positive}: the same trading logic applied as \emph{time-series} momentum to a
+diversified basket of eighteen liquid exchange-traded funds (equities, bonds, gold, commodities,
+the US dollar, real estate, sectors) is alive. We construct a per-asset belief state with a
+Kalman local-linear-trend filter and Bayesian online changepoint detection, feed it together with
+multi-horizon trend features to a small LSTM ``Deep Momentum Network'' trained on a portfolio
+Sharpe-ratio objective net of turnover costs, and select hyperparameters by a \emph{nested}
+walk-forward that never lets the validation choice touch the out-of-sample test. The learned
+model attains an out-of-sample (2016--2024) information ratio of $0.58$ (Newey--West
+$t\approx 1.98$, Deflated Sharpe Ratio $0.67$ over five trials), beating a fixed multi-horizon
+rules baseline ($0.47$) at lower drawdown. We isolate the source of the edge: it is
+\emph{asset-class diversity}, not name count---five genuinely uncorrelated instruments
+(average pairwise correlation $0.03$) more than double the risk-adjusted return of twenty-two
+sector-diversified equities (correlation $0.41$). Finally we show the practical use: a
+return-stacked overlay (full equities plus a half-sized trend sleeve) beats buy-and-hold S\&P~500
+out of sample on both absolute return and Sharpe. All experiments are reproducible from free Yahoo
+data, net of a transparent cost model, with pre-registered honesty: a correctly-inferred null is
+reported as such.
+\end{abstract}
+
+\section{Introduction}
+\label{sec:intro}
+
+Momentum---the tendency of recent winners to keep winning---is among the most studied phenomena in
+empirical finance, and one of the few with out-of-sample persistence across decades and asset
+classes \cite{moskowitz2012}. The deep-learning literature has enriched it: Deep Momentum Networks
+inject learned trading rules into a volatility-scaling framework and optimize a Sharpe-ratio loss
+directly \cite{lim2019}; Slow Momentum with Fast Reversion augments this with changepoint detection
+to survive trend reversals \cite{wood2021}; and the Momentum Transformer replaces recurrence with
+attention \cite{wood2021mt}. A recurring weakness of the broader reinforcement- and deep-learning
+trading literature is evaluation: raw price windows as state, in-sample tuning, and performance
+reported without rigorous walk-forward or cost accounting \cite{hambly2023}.
+
+This paper takes the honest-evaluation stance seriously and lets it dictate the result rather than
+the other way around. We make three contributions, organized as a single empirical narrative.
+
+\textbf{(i) A motivating negative.} We first show that the obvious adaptation---cross-sectional
+momentum on US large-cap equities, dollar-neutral long-winners/short-losers---is \emph{dead} net
+of costs in 2006--2024, and that a Bayesian online changepoint overlay does not save it
+(Section~\ref{sec:negative}). This is consistent with the decay of equity momentum in liquid
+large-caps and is reported plainly, not buried.
+
+\textbf{(ii) A belief-state Deep Momentum Network that works on the right universe.} We construct a
+per-asset belief state from a Kalman local-linear-trend filter (filtered velocity, a trend
+$t$-statistic, and the standardized innovation) and Bayesian online changepoint detection
+\cite{kalman1960,adams2007}, feed it with multi-horizon volatility-normalized returns to a small
+shared LSTM, and train on a portfolio Sharpe objective net of turnover costs in the direct-
+reinforcement spirit of \cite{moody2001}. Crucially, hyperparameters are chosen by a \emph{nested}
+walk-forward---validation-only selection with early stopping---so the out-of-sample number is
+honest by construction (Section~\ref{sec:method}). On a diversified eighteen-ETF basket the learned
+model beats a strong fixed-rule baseline out of sample (Section~\ref{sec:results}).
+
+\textbf{(iii) Where the edge comes from, and how to use it.} We isolate the mechanism---asset-class
+diversity, quantified by average pairwise correlation---and show it dominates name count
+(Section~\ref{sec:diversity}); and we demonstrate a practical deployment in which a return-stacked
+trend overlay beats buy-and-hold equity out of sample (Section~\ref{sec:deploy}).
+
+We are deliberately conservative about magnitudes. Better state estimation extracts a weak signal
+more cleanly; it does not manufacture signal. Under the Fundamental Law of Active Management
+\cite{grinold1999}, our levers are signal quality and breadth of \emph{independent} bets, not raw
+instrument count. The realistic target is a diversified information ratio of order $0.4$--$0.7$,
+and every number below is reported net of a transparent cost model.
+
+\section{Related Work}
+\label{sec:related}
+
+\paragraph{Momentum and deep momentum.} Time-series momentum \cite{moskowitz2012} trades each asset
+on its own past return, volatility-scaled; it is the economic baseline our model must beat. Deep
+Momentum Networks \cite{lim2019} learn position sizing end-to-end under a Sharpe loss; the Slow
+Momentum / Fast Reversion architecture \cite{wood2021} adds changepoint detection to handle
+turning points; the Momentum Transformer \cite{wood2021mt} is the attention-based successor. Our
+model is a deliberately small LSTM Deep Momentum Network whose novelty is not capacity but the
+\emph{belief-state} inputs (a single Kalman filter supplies both the trend and the changepoint
+signal) and the \emph{nested}, cost-aware evaluation.
+
+\paragraph{Filtering and changepoints.} The Kalman filter \cite{kalman1960} and structural
+time-series models give the linear-Gaussian belief; Bayesian online changepoint detection
+\cite{adams2007} supplies a per-asset regime-break severity. We note that simple linear models are
+competitive with elaborate sequence models at this frequency and signal-to-noise
+\cite{zeng2023}, which motivates a small network plus an informative inductive bias rather than raw
+capacity.
+
+\paragraph{Honest evaluation.} Multiple-testing inflation of backtested Sharpe ratios is corrected
+by the Deflated Sharpe Ratio \cite{bailey2014}; walk-forward discipline, purged cross-validation,
+and the probability of backtest overfitting are developed in \cite{lopezdeprado2018}. We use
+Newey--West $t$-statistics throughout and report the Deflated Sharpe Ratio against the number of
+configurations tried.
+
+\section{A Motivating Negative: Cross-Sectional Equity Momentum}
+\label{sec:negative}
+
+We first test the natural equity adaptation: each day, rank the investable universe by a
+$12{-}1$ momentum score, go long the top decile and short the bottom decile, dollar-neutral and
+volatility-scaled, rebalanced and held, net of a $5$~bps spread on turnover. On the S\&P~100
+(2000--2024) and on a $414$-name S\&P~500 sample (2006--2024), every variant we tried lost money
+out of sample: plain cross-sectional momentum, a Kalman-velocity ranking, and a
+significance-gated belief variant all returned information ratios between $-0.16$ and $-1.34$ on
+the S\&P~100 and between $-0.28$ and $-0.47$ on the broader sample across daily to quarterly
+rebalancing. A market-level Bayesian changepoint overlay did not help (it moved the information
+ratio from $-0.36$ to $-0.37$): the losses are not concentrated in detectable regime breaks but
+bleed across a structurally low-momentum, highly-correlated, efficient large-cap universe. We
+report this as a clean null and move to the setting where the same logic is alive.
+
+\section{Belief-State Features and the Deep Momentum Network}
+\label{sec:method}
+
+\paragraph{Universe.} A fixed basket of eighteen liquid ETFs spanning asset classes: US large/
+tech/small-cap, developed and emerging international equity; long, intermediate, investment-grade
+and high-yield bonds; gold, silver, broad commodities and oil; the US dollar; real estate; and
+three equity sectors. Daily adjusted prices from Yahoo Finance, 2007--2024.
+
+\paragraph{Per-asset belief state.} For each asset we run a Kalman local-linear-trend filter on the
+log price \cite{kalman1960}, reading off the filtered trend velocity $\hat v_t$, the trend
+significance $\hat v_t/\sqrt{P^{vv}_t}$, and the standardized innovation $\nu_t/\sqrt{S_t}$; and a
+Bayesian online changepoint detector \cite{adams2007} on the returns, summarized as a break
+severity $s_t\in[0,1]$ (posterior mass on short run lengths). The feature vector per asset per day
+($F=10$) is: five volatility-normalized multi-horizon returns ($1,21,63,126,252$ days), log
+realized volatility, and the four belief signals $(\hat v_t,\ \hat v_t/\sqrt{P^{vv}_t},\
+\nu_t/\sqrt{S_t},\ s_t)$.
+
+\paragraph{Model and objective.} A single shared LSTM reads each asset's own feature sequence and
+emits a position $\pi_{j,t}=\tanh(\cdot)\in[-1,1]$; there is no cross-asset information at decision
+time. The training objective is the Sharpe ratio of the equal-capital portfolio net of turnover
+cost,
+\begin{equation}
+\mathcal{L} \;=\; -\,\frac{\bar R}{\mathrm{std}(R)}, \qquad
+R_t = \frac{1}{N}\sum_{j=1}^N \pi_{j,t}\,\rho_{j,t+1} \;-\; c\,\frac{1}{N}\sum_j |\pi_{j,t}-\pi_{j,t-1}|,
+\label{eq:sharpe}
+\end{equation}
+with next-day returns $\rho$ and cost rate $c$, in the direct-reinforcement spirit of
+\cite{moody2001}. Diversification is thus inside the loss, even though each position is decided
+from a single asset's features.
+
+\paragraph{Honest nested walk-forward.} We use two expanding out-of-sample folds (test blocks
+ending 2020 and 2024). Within each fold, the last $20\%$ of the training window is a validation
+split used \emph{both} for early stopping and for selecting the configuration (hidden size,
+weight decay, dropout) from a small grid; the test block is touched exactly once, for measurement.
+Feature standardization is fit on training data only. This makes the reported out-of-sample number
+free of selection bias by construction.
+
+\section{Results}
+\label{sec:results}
+
+Table~\ref{tab:main} reports the headline out-of-sample comparison (2016--2024, net of costs,
+each return stream scaled to $10\%$ annualized volatility for comparability). The learned Deep
+Momentum Network attains an information ratio of $0.58$ (Newey--West $t=1.98$; Deflated Sharpe
+Ratio $0.67$ against five configurations), beating the fixed multi-horizon rules baseline ($0.47$)
+at a smaller maximum drawdown ($-17\%$ vs $-21\%$). The nested procedure selected the same model
+size (hidden $=16$) in both folds, indicating a stable rather than fragile choice.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lrrrr}
+\toprule
+Strategy (out-of-sample 2016--2024, net) & IR & NW-$t$ & DSR & max DD \\
+\midrule
+Rules time-series momentum (fixed)            & $0.47$ & --     & --     & $-21\%$ \\
+ML LSTM Deep Momentum Network (nested)        & $\mathbf{0.58}$ & $1.98$ & $0.67$ & $\mathbf{-17\%}$ \\
+\bottomrule
+\end{tabular}
+\caption{Honest nested out-of-sample comparison on the eighteen-ETF basket. Figures
+\texttt{etf\_ml\_vs\_rules.png}.}
+\label{tab:main}
+\end{table}
+
+\section{Where the Edge Comes From: Diversity, Not Count}
+\label{sec:diversity}
+
+The Fundamental Law of Active Management \cite{grinold1999} ties realized information ratio to the
+number of \emph{independent} bets, not the raw instrument count. We make this concrete. A
+fixed time-series-momentum rule on twenty-two sector-diversified US equities returns a Sharpe ratio
+of only $0.15$, with average pairwise correlation $0.41$: across eleven sectors the names still
+fall together, so the effective breadth is small. Five genuinely uncorrelated diversifiers (long
+and intermediate Treasuries, gold, broad commodities, the dollar) have average pairwise correlation
+$0.03$ and a standalone Sharpe of $0.19$. Combining the two---twenty-seven instruments---yields a
+Sharpe of $0.34$, \emph{higher than either component alone}: the diversification ``free lunch.''
+Consistently, five well-chosen diversified ETFs outperform one hundred correlated equities
+(information ratio $+0.54$ vs $+0.09$) under the identical rule. The lesson is that asset-class
+diversity, measured by low cross-correlation, is the lever---not the number of names or sectors.
+
+\section{Practical Deployment: Beating Buy-and-Hold by Combining}
+\label{sec:deploy}
+
+Over 2009--2024 the US equity market was an exceptional bull; in such a regime no diversified,
+risk-controlled strategy beats $100\%$ equities on \emph{absolute} return, and ours does not in
+isolation. The honest and useful question is how the trend sleeve \emph{combines} with equities.
+Out of sample (2016--2024, net), a return-stacked overlay---hold the full equity position and add a
+half-sized trend sleeve via margin ($1.5\times$ gross)---turns \EUR$10{,}000$ into \EUR$37{,}390$
+versus \EUR$29{,}825$ for buy-and-hold S\&P~500, with a higher Sharpe ($0.98$ vs $0.84$) at
+comparable drawdown; a leverage-free $50/50$ blend has the best risk-adjusted profile (Sharpe
+$1.04$, maximum drawdown roughly halved). The mechanism is that the trend sleeve earns precisely
+when equities fall (it was positive through the 2022 selloff, short bonds and equities, long the
+dollar and energy), so stacking it on equities adds return where it hurts most. Figure
+\texttt{etf\_beat\_buyhold.png} shows the equity curves; we flag the obvious risk that the
+overlay uses leverage and that the equity--trend diversification, while historically negative in
+crises, is not guaranteed.
+
+\section{Scope and Limitations}
+\label{sec:scope}
+
+The result is conditional on the tested universe and period; survivorship and the specific ETF set
+are caveats, and daily data preclude microstructure effects. The learned edge ($\IR\approx 0.58$,
+$t\approx 2$) is positive but not overwhelming, as is honest for nine years of out-of-sample
+diversified data. The Kalman belief is linear-Gaussian by design; genuine fat tails and stochastic
+volatility are only partially captured. Costs are a flat spread plus, where shorting equities,
+a financing charge; true execution slippage and borrow are not modeled. Consistent with prior
+practice, where evidence is weak we say so: the cross-sectional equity result is a null, and the
+time-series result is a modest, cost-surviving, but not spectacular edge.
+
+\section{Conclusion}
+\label{sec:concl}
+
+Honest evaluation, not architecture, is the protagonist. The same momentum logic is dead on
+cross-sectional large-cap equities and alive on a diversified asset basket; a belief-state Deep
+Momentum Network, selected by a leak-free nested walk-forward, beats a strong fixed rule out of
+sample; the edge traces to asset-class diversity rather than instrument count; and the practical
+payoff is a return-stacked overlay that beats buy-and-hold equity. Every claim is reproducible from
+free data, net of costs, with nulls reported as nulls.
+
+\begin{thebibliography}{99}
+
+\bibitem{adams2007} Adams, R.\ P., \& MacKay, D.\ J.\ C.\ (2007). Bayesian online changepoint
+detection. \emph{arXiv preprint} arXiv:0710.3742.
+
+\bibitem{bailey2014} Bailey, D.\ H., \& L\'opez de Prado, M.\ (2014). The Deflated Sharpe Ratio:
+correcting for selection bias, backtest overfitting, and non-normality. \emph{The Journal of
+Portfolio Management} 40(5):94--107.
+\href{https://doi.org/10.3905/jpm.2014.40.5.094}{doi:10.3905/jpm.2014.40.5.094}
+
+\bibitem{grinold1999} Grinold, R.\ C., \& Kahn, R.\ N.\ (1999). \emph{Active Portfolio Management},
+2nd ed. McGraw-Hill.
+
+\bibitem{hambly2023} Hambly, B., Xu, R., \& Yang, H.\ (2023). Recent advances in reinforcement
+learning in finance. \emph{Mathematical Finance} 33(3):437--503.
+
+\bibitem{kalman1960} Kalman, R.\ E.\ (1960). A new approach to linear filtering and prediction
+problems. \emph{Journal of Basic Engineering} 82(1):35--45.
+
+\bibitem{lim2019} Lim, B., Zohren, S., \& Roberts, S.\ (2019). Enhancing time series momentum
+strategies using deep neural networks. \emph{arXiv preprint} arXiv:1904.04912. (\emph{The Journal
+of Financial Data Science}, 2019.)
+
+\bibitem{lopezdeprado2018} L\'opez de Prado, M.\ (2018). \emph{Advances in Financial Machine
+Learning}. Wiley.
+
+\bibitem{moody2001} Moody, J., \& Saffell, M.\ (2001). Learning to trade via direct reinforcement.
+\emph{IEEE Transactions on Neural Networks} 12(4):875--889.
+\href{https://doi.org/10.1109/72.935097}{doi:10.1109/72.935097}
+
+\bibitem{moskowitz2012} Moskowitz, T.\ J., Ooi, Y.\ H., \& Pedersen, L.\ H.\ (2012). Time series
+momentum. \emph{Journal of Financial Economics} 104(2):228--250.
+
+\bibitem{wood2021} Wood, K., Roberts, S., \& Zohren, S.\ (2021). Slow momentum with fast reversion:
+a trading strategy using deep learning and changepoint detection. \emph{arXiv preprint}
+arXiv:2105.13727. (\emph{The Journal of Financial Data Science}, 2022.)
+
+\bibitem{wood2021mt} Wood, K., Giegerich, S., Roberts, S., \& Zohren, S.\ (2021). Trading with the
+momentum transformer: an intelligent and interpretable architecture. \emph{arXiv preprint}
+arXiv:2112.08534.
+
+\bibitem{zeng2023} Zeng, A., Chen, M., Zhang, L., \& Xu, Q.\ (2023). Are transformers effective for
+time series forecasting? \emph{Proceedings of the AAAI Conference on Artificial Intelligence}
+37(9):11121--11128. \href{https://doi.org/10.1609/aaai.v37i9.26317}{doi:10.1609/aaai.v37i9.26317}
+
+\end{thebibliography}
+
+\vspace{0.5em}
+\noindent\textit{Reproducibility.} All code, the cost model, and the figures are in
+\texttt{etoro/paper4/} and \texttt{etoro/Strategies/slow-momentum-fast-reversion/}; results
+regenerate from free Yahoo data via \texttt{paper4/code/run\_etf.py}.
+
+\end{document}
