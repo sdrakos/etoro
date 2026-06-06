@@ -164,3 +164,37 @@ Better filtering extracts a weak signal more cleanly; it does not manufacture si
 Realistic target: market-neutral IR 0.5–1.0, and possibly null after real eToro costs. The
 paper's value is the unification + the honest, cost-aware, pre-registered evaluation —
 whatever the sign of the result. No performance claim is written before the harness produces it.
+
+## 12. Empirical pivot (2026-06-06, after the first walk-forward run)
+
+The first walk-forward (Tasks 1–9) was run and produced an **honest negative** on the
+originally-specified setting, then a **positive** on the correct one. This section records the
+pivot; the implementation now targets the positive setting, keeping the negative as the
+motivating baseline.
+
+**Finding 1 — cross-sectional S&P-100/500 equity momentum is dead net of costs.**
+TSMOM/velocity/belief variants all returned negative IR (S&P 100: −0.16 to −1.34; S&P 414
+across daily→quarterly rebalance: −0.28 to −0.47). The BOCPD gate did not rescue it (losses
+are not concentrated in detectable regime breaks). This becomes the paper's *motivating
+negative* — capacity/breadth/efficiency kill cross-sectional large-cap equity momentum.
+
+**Finding 2 — time-series momentum on a diversified ETF basket works (the real Wood/Zohren
+setting).** On 18 liquid ETFs (equity indices, bonds, gold, commodities, sectors), 2007–2024,
+net of 5 bps + 300 bps short-financing:
+- multi-horizon (1/3/6/12-month) TSMOM, monthly rebalance, vol-scaled: **IR ≈ 0.37, DSR ≈ 0.48,
+  maxDD −23%, turnover ≈ 0.03, durable across 2007–09 / 2010–15 / 2016–24 (all +0.36…+0.49).**
+- **+ per-asset BOCPD changepoint overlay**: ~same IR, **maxDD −23% → −20%**, lower turnover —
+  the paper's drawdown-control contribution, modest and honest. (A market-level gate hurts.)
+
+**Revised primary setting (supersedes §5–§6 for the headline result):**
+- Universe: a fixed basket of ~18 liquid, diversified ETFs (frozen list in code).
+- Signal: **time-series** (per-asset, directional long/short its own trend), multi-horizon sign
+  average over lookbacks {21,63,126,252}, vol-scaled to a target, monthly rebalance.
+- Changepoint overlay: per-asset BOCPD severity scales each asset's exposure down on a break.
+- Construction is **directional** (not dollar-neutral); cross-sectional equity stays in as the
+  *negative baseline*.
+- Same honest evaluation (walk-forward, costs, NW-t, DSR, durability-by-year).
+
+This pivot does not change the contribution claims (§3): the state-space unification and the
+changepoint-gated sizing are unchanged; only the universe/portfolio-construction that makes the
+signal economically alive is corrected to the diversified time-series setting.
