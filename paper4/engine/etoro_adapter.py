@@ -20,7 +20,8 @@ class EtoroAdapter:
             if iid is None:
                 continue
             out.append({"instrument_id": int(iid), "is_buy": bool(p.get("isBuy")),
-                        "amount_eur": float(p.get("amount") or 0.0)})
+                        "amount_eur": float(p.get("amount") or 0.0),
+                        "position_id": p.get("positionID")})
         return out
 
     def candles(self, instrument_id, count=500, interval="OneDay"):
@@ -34,7 +35,7 @@ class EtoroAdapter:
             path = f"/api/v1/trading/execution/{SEG}/market-open-orders/by-amount"
             body = {"instrumentId": order.instrument_id, "isBuy": order.is_buy,
                     "amount": order.amount_eur}
-        else:  # close
-            path = f"/api/v1/trading/execution/{SEG}/market-close-orders"
-            body = {"instrumentId": order.instrument_id}
+        else:  # close — eToro closes by positionID at the positions/{id} route
+            path = f"/api/v1/trading/execution/{SEG}/market-close-orders/positions/{order.position_id}"
+            body = {}
         return self.client.request("POST", path, json=body)

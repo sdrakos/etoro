@@ -1,6 +1,13 @@
 from rebalancer import Order, plan
 
 
+def test_close_order_carries_position_id():
+    current = [{"instrument_id": 101, "is_buy": True, "amount_eur": 3000, "position_id": 777}]
+    orders = plan(current, {"TLT": 1.0}, {"TLT": 102, "SPY": 101}, capital=10000, min_trade=50)
+    closed = [o for o in orders if o.action == "close"][0]
+    assert closed.instrument_id == 101 and closed.position_id == 777
+
+
 def test_open_new_positions_above_threshold():
     targets = {"SPY": 0.5, "TLT": -0.5}
     imap = {"SPY": 101, "TLT": 102}

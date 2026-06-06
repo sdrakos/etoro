@@ -8,14 +8,14 @@ class FakeClient:
     def request(self, method, path, **kw):
         if path.endswith("/portfolio"):
             return {"clientPortfolio": {"positions": [
-                {"instrumentID": 101, "isBuy": True, "amount": 3000.0}]}}
+                {"instrumentID": 101, "positionID": 777, "isBuy": True, "amount": 3000.0}]}}
         self.sent.append((method, path, kw)); return {"ok": True}
 
 
 def test_positions_normalized():
     a = EtoroAdapter(FakeClient())
     pos = a.positions()
-    assert pos == [{"instrument_id": 101, "is_buy": True, "amount_eur": 3000.0}]
+    assert pos == [{"instrument_id": 101, "is_buy": True, "amount_eur": 3000.0, "position_id": 777}]
 
 
 def test_submit_refused_without_execute():
@@ -30,3 +30,10 @@ def test_submit_open_sends_request_when_allowed():
     assert len(c.sent) == 1
     method, path, kw = c.sent[0]
     assert method == "POST" and "market-open-orders" in path
+
+
+def test_submit_close_uses_position_id_route():
+    c = FakeClient(); a = EtoroAdapter(c, allow_execute=True)
+    a.submit(Order("close", "SPY", 101, True, 3000.0, "exit", position_id=777))
+    method, path, kw = c.sent[0]
+    assert method == "POST" and path.endswith("/market-close-orders/positions/777")

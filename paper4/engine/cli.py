@@ -44,8 +44,10 @@ def _real_client():
 def _search_fn(client):
     def search(ticker):
         r = client.request("GET", f"/api/v1/market-data/search?internalSymbolFull={ticker}")
-        items = (r or {}).get("instruments") or (r or {}).get("data") or []
-        return int(items[0]["instrumentId"]) if items else None
+        items = (r or {}).get("items") or []
+        exact = [x for x in items
+                 if x.get("internalSymbolFull") == ticker and not x.get("isHiddenFromClient", False)]
+        return int(exact[0]["instrumentId"]) if exact else None
     return search
 
 
