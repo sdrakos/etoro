@@ -319,6 +319,20 @@ def test_build_weights_variants_run():
         row = W[260]
         assert abs(np.nansum(row)) < 1e-9           # dollar neutral
         assert np.nansum(np.abs(row)) <= 1.0 + 1e-9 # gating never grosses up
+
+def test_belief_gated_trades_only_significant_names():
+    # belief_gated must EXCLUDE statistically-insignificant trends (composition changes IR,
+    # unlike a magnitude scale which xs_weights normalizes away).
+    T, N = 300, 20
+    rng = np.random.default_rng(1)
+    close = np.cumprod(1 + rng.normal(0.0003, 0.01, (T, N)), axis=0) * 100
+    vel = rng.normal(0, 1e-3, (T, N))
+    sev = np.zeros((T, N))
+    sig = np.zeros((T, N)); sig[:, :10] = 5.0; sig[:, 10:] = 0.1   # first 10 significant
+    W = build_weights("belief_gated", close, vel, sig, sev, k=3, warmup=252, sig_thresh=1.0)
+    row = W[260]
+    assert np.allclose(row[10:], 0.0)               # insignificant names never traded
+    assert np.nansum(np.abs(row)) > 0               # significant names do trade
 ```
 
 - [ ] **Step 2: Run, verify FAIL.**
@@ -360,12 +374,16 @@ def momentum_matrix(close, lookback=252, skip=21):
 
 
 def build_weights(variant, close, vel, trend_sig, sev, k, warmup=252,
-                  sig_clip=2.0, sev_floor=0.2):
+                  sig_thresh=1.0, sev_floor=0.2):
     """Return (T,N) weights for one of: tsmom | cpd_momentum | belief_gated.
 
     tsmom        : score = 12-1 momentum; full gross.
-    cpd_momentum : score = Kalman velocity; gross scaled by (1 - portfolio severity).
-    belief_gated : score = velocity * significance gate; gross scaled by (1 - severity).
+    cpd_momentum : score = Kalman velocity; gross scaled by time-varying (1 - severity).
+    belief_gated : velocity ranking, but ONLY among names whose trend is statistically
+                   significant (|trend_sig| >= sig_thresh); time-varying severity gross gate.
+                   Significance changes WHICH names trade (book composition), so it moves IR
+                   — a magnitude multiplier would not, since xs_weights is rank-based and
+                   normalizes magnitude away. This is what distinguishes it from cpd_momentum.
     """
     T, N = close.shape
     W = np.zeros((T, N))
@@ -378,8 +396,8 @@ def build_weights(variant, close, vel, trend_sig, sev, k, warmup=252,
             score = zscore_xs(vel[t])
             gate = 1.0 - np.nanmean(sev[t])
         elif variant == "belief_gated":
-            g = np.clip(np.abs(trend_sig[t]) / sig_clip, 0.0, 1.0)
-            score = zscore_xs(vel[t]) * g
+            score = zscore_xs(vel[t])
+            score[np.abs(trend_sig[t]) < sig_thresh] = np.nan   # drop insignificant trends
             gate = 1.0 - np.nanmean(sev[t])
         else:
             raise ValueError(f"unknown variant {variant!r}")
