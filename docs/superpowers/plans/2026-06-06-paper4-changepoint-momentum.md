@@ -27,16 +27,16 @@ Strategies/slow-momentum-fast-reversion/
     test_bocpd.py
     test_signals.py
 paper4/
-  code/
-    __init__.py
+  code/               # NOT a Python package — the name 'code' shadows the stdlib `code`
+                      # module and breaks pytest's package import. No __init__.py here; all
+                      # modules are top-level, resolved via cwd when run from this dir.
     universe.py     # frozen as-traded S&P 100 list + START/END
     data.py         # cache-aside (T,N) close matrix from Yahoo (npz)
     costs.py        # spread + turnover + short-financing
     metrics.py      # IR, max_dd, Newey-West t, deflated Sharpe, durability
     harness.py      # walk-forward runner wiring everything
     run_paper4.py   # CLI entry: produces tables + figures
-    tests/
-      __init__.py
+    tests/          # NO __init__.py (same reason); run from `cd paper4/code`
       test_costs.py
       test_metrics.py
       test_harness.py
@@ -44,7 +44,9 @@ paper4/
   paper_skeleton.tex
 ```
 
-Run tests with: `python -m pytest Strategies/slow-momentum-fast-reversion/tests paper4/code/tests -q`
+Run tests with:
+`cd Strategies/slow-momentum-fast-reversion && python -m pytest tests -q`  (strategy units)
+`cd paper4/code && python -m pytest tests -q`  (engine units — must run from this dir)
 
 ---
 
@@ -53,11 +55,16 @@ Run tests with: `python -m pytest Strategies/slow-momentum-fast-reversion/tests 
 **Files:**
 - Create: `Strategies/slow-momentum-fast-reversion/__init__.py` (empty)
 - Create: `Strategies/slow-momentum-fast-reversion/tests/__init__.py` (empty)
-- Create: `paper4/code/__init__.py` (empty)
-- Create: `paper4/code/tests/__init__.py` (empty)
 - Create: `paper4/code/universe.py`
 
-- [ ] **Step 1: Create the four empty `__init__.py` files** (so pytest can import the packages).
+> **Do NOT create `__init__.py` under `paper4/code/`.** The directory name `code` shadows
+> Python's stdlib `code` module; with an `__init__.py` present pytest tries to import a
+> package named `code` and collection fails (`'code' is not a package`). Leave `paper4/code`
+> and `paper4/code/tests` as plain directories; their modules run as top-level (resolved via
+> cwd) when invoked from `cd paper4/code`. Only the strategy package gets `__init__.py`
+> (its hyphenated name can't form a package path, so it's immune to the clash).
+
+- [ ] **Step 1: Create the two strategy `__init__.py` files** (empty).
 
 - [ ] **Step 2: Write `paper4/code/universe.py`** — frozen S&P 100 (as-traded snapshot; survivorship caveat documented in spec §5):
 
