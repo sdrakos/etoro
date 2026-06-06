@@ -1,6 +1,6 @@
 import numpy as np
 from sizing import (ledoit_wolf_cov, inverse_vol_weights, min_variance_weights,
-                    hrp_weights, kelly_leverage)
+                    hrp_weights, kelly_leverage, realized_vol)
 
 
 def _cov(seed=0, n=5, w=400):
@@ -51,3 +51,26 @@ def test_ledoit_wolf_cov_shape_psd():
     cov = ledoit_wolf_cov(_cov())
     assert cov.shape == (5, 5)
     assert np.all(np.linalg.eigvalsh(cov) > -1e-10)   # PSD
+
+
+def test_realized_vol_rolling_matches_annualized_std():
+    rng = np.random.default_rng(3)
+    r = rng.normal(0, 0.01, 300)
+    assert np.isclose(realized_vol(r, method="rolling"), r.std() * np.sqrt(252))
+
+
+def test_realized_vol_ewma_reacts_to_recent_spike():
+    # calm for 200 days, then a volatile burst in the most recent 40
+    calm = np.full(200, 0.002)
+    spike = np.tile([0.05, -0.05], 20)               # large recent swings
+    r = np.concatenate([calm, spike])
+    ewma = realized_vol(r, method="ewma", halflife=21)
+    rolling = realized_vol(r, method="rolling")
+    assert ewma > rolling                            # recency weighting sees the burst more
+
+
+def test_realized_vol_ewma_equals_rolling_when_flat():
+    # constant-magnitude returns -> recency weighting changes nothing
+    r = np.tile([0.01, -0.01], 100)
+    assert np.isclose(realized_vol(r, "ewma", halflife=21),
+                      realized_vol(r, "rolling"), rtol=1e-2)

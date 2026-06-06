@@ -51,17 +51,21 @@ def _search_fn(client):
     return search
 
 
-def _vol_target_capital(close, tickers, weights, capital, target_vol):
+def _vol_target_capital(close, tickers, weights, capital, target_vol, method="rolling"):
     """Scale the deployed capital so the book's recent volatility hits target_vol (the risk dial).
-    Estimates the book vol from the last ~63 days at the current weights; leverage capped [0.2, 3]."""
+    Estimates the book vol from the current weights on a trailing window; leverage capped [0.2, 3].
+    method="rolling": equal-weighted std of the last ~63 days.
+    method="ewma":    exponentially-weighted std over ~126 days (recent days weigh more ->
+                      reacts faster to a volatility spike). Selectable so the front can offer it."""
     import numpy as np
+    from sizing import realized_vol
     w = np.array([weights.get(tk, 0.0) for tk in tickers])
-    win = close[-64:]
+    win = close[-127:] if method == "ewma" else close[-64:]
     rr = np.nan_to_num(win[1:] / win[:-1] - 1.0)
-    book_vol = float((rr @ w).std() * np.sqrt(252)) or 1e-9
+    book_vol = realized_vol(rr @ w, method=method) or 1e-9
     lev = min(max(target_vol / (book_vol + 1e-9), 0.2), 3.0)
-    print(f"[vol-target {target_vol*100:.0f}%] book vol {book_vol*100:.0f}% -> leverage x{lev:.2f}"
-          f" -> deploy EUR {capital*lev:,.0f}")
+    print(f"[vol-target {target_vol*100:.0f}% / {method}] book vol {book_vol*100:.0f}% -> "
+          f"leverage x{lev:.2f} -> deploy EUR {capital*lev:,.0f}")
     return capital * lev
 
 
@@ -71,7 +75,8 @@ def cmd_signal(args, do_execute=False):
                              model_name=args.model)
     capital = args.capital
     if getattr(args, "target_vol", None):
-        capital = _vol_target_capital(close, tickers, weights, args.capital, args.target_vol)
+        capital = _vol_target_capital(close, tickers, weights, args.capital, args.target_vol,
+                                      method=getattr(args, "vol_method", "rolling"))
     client = _real_client()
     mp, missing = resolve(list(weights), _search_fn(client), cache=_load_cache())
     _save_cache(mp)
@@ -115,6 +120,9 @@ def main():
         p.add_argument("--target-vol", type=float, default=None,
                        help="risk dial: scale exposure to this annual volatility (e.g. 0.20); "
                             "default off = deploy gross 1x")
+        p.add_argument("--vol-method", choices=["rolling", "ewma"], default="rolling",
+                       help="how the book vol is estimated for --target-vol: rolling (equal-weight "
+                            "~63d) or ewma (recency-weighted ~126d, reacts faster)")
         if name == "execute":
             p.add_argument("--execute", action="store_true")
     pr = sub.add_parser("retrain"); pr.add_argument("--model", default="prod")

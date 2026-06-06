@@ -40,6 +40,7 @@ scaler + meta), and saves it to `~/.etoro/models/<model>/`.
 | `--min-trade`| `50`    | suppress any order whose EUR delta is below this threshold |
 | `--model`    | `prod`  | named model under `~/.etoro/models/` (used by `ml` and `retrain`) |
 | `--target-vol` | off   | **the risk dial** — scale exposure to this annual volatility (e.g. `0.20`); see below |
+| `--vol-method` | `rolling` | how the book vol is estimated for `--target-vol`: `rolling` (equal-weight ~63d) or `ewma` (recency-weighted ~126d, reacts faster); see below |
 | `--execute`  | off     | (`execute` only) actually send orders to the **demo** account |
 
 ## Risk level — the profit dial (`--target-vol`)
@@ -54,8 +55,9 @@ python paper4/engine/cli.py signal --target-vol 0.20   # ~2x the profit AND ~2x 
 ```
 
 Without `--target-vol` the engine simply deploys your full capital once (gross = 1). With it, the
-engine looks at the book's recent volatility and **levers up or down** so the realized volatility
-hits your target (capped at 3x). Example trade-off (long-only, real eToro prices, 3 years):
+engine looks at the book's recent volatility (a **trailing/rolling window**, re-estimated every run —
+so it is causal, no look-ahead) and **levers up or down** so the realized volatility hits your target
+(capped at 3x). Example trade-off (long-only, real eToro prices, 3 years):
 
 | target vol | profit (3y) | per year | worst drop |
 |-----------:|------------:|---------:|-----------:|
@@ -64,6 +66,27 @@ hits your target (capped at 3x). Example trade-off (long-only, real eToro prices
 | 30% (aggressive) | +98% | +26% | −40% |
 
 There is **no free lunch**: more profit always comes with proportionally bigger drops.
+
+### How the volatility is measured (`--vol-method`)
+
+The risk dial needs an estimate of *how nervous the book is right now*. Two ways, selectable so the
+front-end can offer both:
+
+| method | window | weighting | behaviour |
+|--------|--------|-----------|-----------|
+| `rolling` (default) | last ~63 days | every day counts equally | steady, smooth; slower to notice a fresh storm |
+| `ewma` | last ~126 days | **recent days weigh more** (21-day half-life) | **reacts faster** to a volatility spike → de-levers sooner |
+
+```bash
+python paper4/engine/cli.py signal --target-vol 0.10                  # rolling (default)
+python paper4/engine/cli.py signal --target-vol 0.10 --vol-method ewma   # faster-reacting
+```
+
+In plain words: `rolling` treats the last three months as one flat average; `ewma` pays most
+attention to *this week*, so if volatility just jumped it cuts exposure quicker (and re-levers
+quicker when things calm down). Same Sharpe, slightly different timing of the risk cut. The estimator
+itself lives in `paper4/code/sizing.py::realized_vol` (pure + unit-tested), ready to be wired to a
+front-end toggle later.
 
 ### Why there is no stop-loss / take-profit
 

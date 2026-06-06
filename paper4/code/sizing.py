@@ -91,3 +91,18 @@ def kelly_leverage(returns, fraction=1.0, cap=3.0):
     r = np.asarray(returns, float)
     f = r.mean() / (r.var() + 1e-12)
     return float(np.clip(fraction * f, 0.0, cap))
+
+
+def realized_vol(returns, method="rolling", halflife=21, periods=252):
+    """Annualized realized volatility of a 1-D daily return stream.
+    method="rolling": plain standard deviation of the whole window (equal weight).
+    method="ewma":    exponentially-weighted std (recent days weigh more -> faster reaction);
+                      `halflife` in days controls how fast old days fade."""
+    r = np.asarray(returns, float)
+    if method == "ewma":
+        lam = 0.5 ** (1.0 / halflife)
+        w = lam ** np.arange(len(r) - 1, -1, -1)          # newest day -> largest weight
+        w = w / (w.sum() + 1e-12)
+        var = float(np.sum(w * (r - np.sum(w * r)) ** 2))
+        return float(np.sqrt(var) * np.sqrt(periods))
+    return float(r.std() * np.sqrt(periods))
