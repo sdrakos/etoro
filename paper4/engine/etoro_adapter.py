@@ -26,7 +26,8 @@ class EtoroAdapter:
 
     def candles(self, instrument_id, count=500, interval="OneDay"):
         return self.client.request(
-            "GET", f"/api/v1/market-data/candles/desc/{instrument_id}/{interval}/{count}")
+            "GET",
+            f"/api/v1/market-data/instruments/{instrument_id}/history/candles/desc/{interval}/{count}")
 
     def submit(self, order):
         if not self.allow_execute:
