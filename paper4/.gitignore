@@ -1,2 +1,5 @@
 *.npz
 *.npz.json
+*.aux
+*.log
+*.out
