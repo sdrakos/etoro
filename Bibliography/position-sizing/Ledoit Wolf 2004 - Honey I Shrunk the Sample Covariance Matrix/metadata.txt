@@ -1,0 +1,7 @@
+Folder: Ledoit Wolf 2004 - Honey I Shrunk the Sample Covariance Matrix
+OpenAlex title: Towards a Cure for BCI Illiteracy
+Year: 2009
+DOI: https://doi.org/10.1007/s10548-009-0121-6
+Venue: Brain Topography
+Tried URLs: ['http://www.ledoit.net/honey.pdf', 'https://link.springer.com/content/pdf/10.1007/s10548-009-0121-6.pdf']
+Downloaded: True

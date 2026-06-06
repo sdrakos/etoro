@@ -1,0 +1,7 @@
+Folder: Kelly 1956 - A New Interpretation of Information Rate
+OpenAlex title: Competitive Optimality of Logarithmic Investment
+Year: 1980
+DOI: https://doi.org/10.1287/moor.5.2.161
+Venue: Mathematics of Operations Research
+Tried URLs: ['https://www.princeton.edu/~wbialek/rome/refs/kelly_56.pdf']
+Downloaded: True

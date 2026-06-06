@@ -1,0 +1,7 @@
+Folder: Grinold 1989 - The Fundamental Law of Active Management
+OpenAlex title: How to calculate breadth: An evolution of the fundamental law of active portfolio management
+Year: 2004
+DOI: https://doi.org/10.1057/palgrave.jam.2240118
+Venue: Journal of Asset Management
+Tried URLs: []
+Downloaded: False

@@ -1,0 +1,7 @@
+Folder: Markowitz 1952 - Portfolio Selection
+OpenAlex title: CAPITAL ASSET PRICES: A THEORY OF MARKET EQUILIBRIUM UNDER CONDITIONS OF RISK*
+Year: 1964
+DOI: https://doi.org/10.1111/j.1540-6261.1964.tb02865.x
+Venue: The Journal of Finance
+Tried URLs: ['https://www.math.hkust.edu.hk/~maykwok/courses/ma362/07F/markowitz_JF.pdf']
+Downloaded: False

@@ -1,0 +1,7 @@
+Folder: Moody Saffell 2001 - Learning to Trade via Direct Reinforcement
+OpenAlex title: Transfer Learning in Deep Reinforcement Learning: A Survey
+Year: 2023
+DOI: https://doi.org/10.1109/tpami.2023.3292075
+Venue: IEEE Transactions on Pattern Analysis and Machine Intelligence
+Tried URLs: ['https://pmc.ncbi.nlm.nih.gov/articles/PMC11018366/pdf/nihms-1982062.pdf']
+Downloaded: False

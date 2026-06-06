@@ -1,0 +1,7 @@
+Folder: Lopez de Prado 2016 - Building Diversified Portfolios that Outperform Out of Sample (HRP)
+OpenAlex title: A Machine Learning-Based Hierarchical Risk Parity Approach: A Case Study of Portfolio Consisting of Stocks of the Top 30 Companies on the Tehran Stock Exchange
+Year: 2022
+DOI: https://doi.org/10.22059/frj.2021.319092.1007146
+Venue: DOAJ (DOAJ: Directory of Open Access Journals)
+Tried URLs: ['https://doaj.org/article/c0cd9bcb957e4f2aacfc6787f36ac32f']
+Downloaded: False
