@@ -16,7 +16,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **`paper4/`** — *"From Dead Cross-Sectional Momentum to Belief-State Deep Time-Series Momentum"* + a **demo-verified eToro deployment engine**. `paper4/code/`: Kalman LLT + BOCPD belief states feeding a fixed-rule **TSMOM** and an **LSTM Deep Momentum Network** (`dmn.py`, **nested leak-free walk-forward** selection), honest cost-aware eval (Deflated Sharpe, durability). Honest arc (all OOS, net): cross-sectional equity momentum is **dead**, time-series momentum on a **diversified** ETF basket is alive; **diversity > count**; **long-only wins in bulls** (loses crisis protection); **vol-target is the risk/profit dial**; **stop-loss hurts** (whipsaw — tested); BOCPD is the "smart brake". `paper4/engine/`: a CLI (`cli.py`: `signal`/`execute` demo-gated/`retrain`, `--target-vol`, `--strategy rules|ml`) that **opens orders live on the eToro demo** (close by **positionID**; search uses the `items[]` key; **17/18 ETFs on eToro**, DBC missing, BTC available), plus `etoro_backtest.py` on **real eToro candles** (~4y) and `dashboard.html` (viewable figures+results). Train on Yahoo (deep), serve on eToro. **21 offline tests** (mocked client). Specs/plans: `docs/superpowers/specs|plans/2026-06-06-paper4-changepoint-momentum*` and `*-etoro-engine*`.
 - **`tutorials/`** — Greek beginner explainers (XeLaTeX/DejaVu Serif), e.g. `signals_tutorial_GR.tex` (signals: IC, IR, Newey-West t, gate, √N combination, risk parity).
 - **`.Claude/Skills/quantiq-pead/`** — the SEC-EDGAR PEAD/lead-lag engine: point-in-time SUE from EDGAR (no analyst data), Fama-MacBeth own/peer separation, drift/half-life/durability event study, risk-parity combination. `analysis/run_big_universe.py` orchestrates own-PEAD + lead-lag on a wide price panel. `skill/sec-edgar/scripts/fundamentals_api.py` is the consolidated endpoint: `get_fundamentals(ua, tickers)` → all PiT line items in one call, `fundamental_factors(panel)` → value/quality/accruals/investment/buyback factors (the orthogonal signals to combine with PEAD).
-- **`Bibliography/`** — curated literature. `intraday-dl-rl-trading/` is an annotated bibliography (`README.md`) of **reputable-only** papers (Oxford-Man/Zohren-Roberts, IEEE TSP/TNNLS, Quant Finance, EJOR, ICML, AAMAS, Math Finance — predatory/paper-mill venues excluded) on LSTM/DMN, RL, and CNN/LOB for intraday (1h/4h) trading, with `download_pdfs.py` (arXiv PDFs are gitignored — re-downloadable). Foundation for a **planned new project**: an intraday (1h/4h) DL/RL momentum algorithm analogous to paper4 (LSTM-DMN vs RL vs CNN/TCN). Start that build with brainstorming.
+- **`Bibliography/`** — curated literature. `intraday-dl-rl-trading/` is an annotated bibliography (`README.md`) of **reputable-only** papers (Oxford-Man/Zohren-Roberts, IEEE TSP/TNNLS, Quant Finance, EJOR, ICML, AAMAS, Math Finance — predatory/paper-mill venues excluded) on LSTM/DMN, RL, and CNN/LOB for intraday (1h/4h) trading, with `download_pdfs.py` (arXiv PDFs are gitignored — re-downloadable). Foundation for the **planned intraday project** below.
 
 Phase status, layout, and end-user CLI examples live in `README.md` — don't duplicate them here.
 
@@ -30,6 +30,18 @@ Honest, fragile results — **signals are universe/period-dependent** (the paper
 - Three real bugs fixed in the skill to get here: EDGAR `sicCode`→`sic`; SUE winsorization (σ→0 gave std 840); event-window filter (events 2011-2026 vs prices → OOS=0/0).
 - **Binding constraint is data, not method**: need depth + small-cap breadth + survivorship-free membership (Sharadar/CRSP). None free; see `paper1_RL/DATA_SOURCES.md`.
 - Written up in **`paper3/paper_skeleton.tex`** (9 pp, TikZ pipeline + drift/cross-config/fundamentals/PnL figures; honest null). Figures live in `paper3/figures/` (gitignore has a `!paper3/figures/*.png` exception over the global `*.png` ignore — keep it).
+
+### Planned: intraday (1h/4h) deep-momentum project (design basis)
+
+**Chosen architecture basis** (for the new intraday algorithm analogous to paper4):
+- **Deep Momentum Networks** (Lim, Zohren, Roberts 2019, arXiv:1904.04912) — an LSTM that outputs the position $X_t\in[-1,1]$ **inside** the volatility-scaling TSMOM framework, trained to **directly maximize Sharpe** (custom loss) with a **turnover-regularization** term; learns trend + sizing jointly. Low-capacity → avoids the overfit the DER paper proved.
+- **+ attention via the Momentum Transformer** (Wood, Giegerich, Roberts, Zohren 2022, arXiv:2112.08534) — better regime adaptation than sequential LSTM. PDFs in `Bibliography/intraday-dl-rl-trading/pdfs/`.
+
+**Data source: Yahoo (yfinance).** 1h bars (~730 days of history on Yahoo); **4h is resampled from 1h** (not a native Yahoo interval). Train on Yahoo, serve later on eToro (the paper4 pattern).
+
+**Planned improvements / experiments:** (1) port DMN to 4h; (2) **eToro cost-aware loss** (real spread + overnight financing, not just the paper's 2–3 bps); (3) 1h+4h multi-timeframe fusion; (4) BOCPD changepoint brake (paper4); (5) vol-target as the risk/profit dial; (6) diversified basket incl. crypto (*diversity > count*); (7) quantile/uncertainty sizing (TFT-style).
+
+**First step before building: a cost-survivability probe** — measure the break-even bps of a 4h trend/DMN vs real costs (the whole project arc shows net-of-costs is the killer; paper3 own-PEAD died at 5 bps). If it survives → brainstorm → spec → plan → build.
 
 ## User preferences (durable)
 
