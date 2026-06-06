@@ -178,6 +178,24 @@ No linter or formatter is configured. The codebase is plain Python 3.11+ with ty
 
 ## Architecture notes
 
+### Future (second phase, to design — not built yet): broker-agnostic `quantiq-trading` library + API
+
+The `paper4/engine/` is **already ~90% broker-agnostic** — only `etoro_adapter.py` knows about eToro
+(`signal_engine`/`rebalancer`/`sizing`/`features`/`metrics` are pure). The plan for "run on any
+platform, not just eToro" is a **refactor, not a rewrite**: extract the engine core into an
+installable **`quantiq-trading` package** and make eToro one plugin behind a `BrokerAdapter`
+protocol (`search` / `candles` / `positions` / `submit`), registered in a `_BROKERS` dict — exactly
+the proven plugin pattern of `trader/data/sources/` (`_SOURCES = {"yahoo","massive"}`, one file per
+source). Layering: **library first** (the logic + broker plugins, `pip install quantiq-trading[etoro|all]`,
+extras per broker like `agelclaw`), then a thin **FastAPI service** on top (`/signal` `/execute`
+`/backtest`, with `broker` as a param), then UI/n8n/3rd-party as consumers. The `ai-trading` skill is
+the *methodology*; this library would be the *tool*. **Honest hard 10%:** per-broker symbology,
+order model (netting vs hedging, by-amount vs by-units, close-by-positionID vs by-symbol), asset
+coverage, fees/financing/market-hours, auth/segments — each new broker needs its own mapping +
+offline (mocked) tests. When we pick this up: go brainstorming → spec → plan; decide library/research
+boundary (what leaves `paperN/`), the second target broker (Alpaca/IBKR/Binance?), and coexistence
+with the existing `trader/` package.
+
 ### Layer rule: data → strategies → engine → CLI
 
 `trader/data/` knows about timeseries and SQLite, nothing about strategies. `trader/strategies/` consumes DataFrames and emits backtrader signals — it doesn't fetch. `trader/engine/` orchestrates Cerebro + analyzers. `trader/cli.py` is the entry point. Each layer is independently testable; circular imports are forbidden.
