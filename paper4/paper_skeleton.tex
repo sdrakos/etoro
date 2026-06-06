@@ -171,7 +171,19 @@ R_t = \frac{1}{N}\sum_{j=1}^N \pi_{j,t}\,\rho_{j,t+1} \;-\; c\,\frac{1}{N}\sum_j
 \end{equation}
 with next-day returns $\rho$ and cost rate $c$, in the direct-reinforcement spirit of
 \cite{moody2001}. Diversification is thus inside the loss, even though each position is decided
-from a single asset's features.
+from a single asset's features. Figure~\ref{fig:arch} summarizes the architecture and the ten
+per-asset features.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.92\textwidth]{figures/fig_architecture.png}
+\caption{The belief-state Deep Momentum Network. Ten per-asset, per-day features---five
+volatility-normalized multi-horizon returns, log realized volatility, the three Kalman
+local-linear-trend belief signals, and the BOCPD changepoint severity---feed a single shared LSTM
+with a $\tanh$ head emitting a position in $[-1,1]$ per asset. The network is trained on the
+portfolio Sharpe ratio net of turnover costs; assets interact only through that loss.}
+\label{fig:arch}
+\end{figure}
 
 \paragraph{Honest nested walk-forward.} We use two expanding out-of-sample folds (test blocks
 ending 2020 and 2024). Within each fold, the last $20\%$ of the training window is a validation
