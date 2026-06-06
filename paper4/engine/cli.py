@@ -36,7 +36,8 @@ def _save_cache(mp):
 
 
 def _real_client():
-    from back.etoro_api.server import get_server_client
+    sys.path.insert(0, os.path.abspath(os.path.join(HERE, "..", "..", "back")))  # so etoro_api.* resolves
+    from etoro_api.server import get_server_client
     return get_server_client()
 
 
