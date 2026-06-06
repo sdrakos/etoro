@@ -24,8 +24,11 @@ Phase status, layout, and end-user CLI examples live in `README.md` — don't du
 Honest, fragile results — **signals are universe/period-dependent** (the paper3 thesis, demonstrated live):
 - **own-PEAD**: null on mega-caps (150 names, t=1.2) but **significant when mid-caps included** (401 names 2015-2024, OOS IR 0.74, NW t=2.54, durable) — matches theory (PEAD stronger in smaller names).
 - **same-industry lead-lag**: significant only on the narrow 150 mega-cap universe (t=2.61); **null on the broad 401** (t=0.10) → small-universe artifact, fragile.
+- **fundamentals** (9 theory-signed value/quality/accruals/investment/buyback factors via `fundamentals_api`): **all fail the gate** at every horizon (monthly→annual). 2015-24 = "value winter" + only ~3 independent annual obs → sample too short for slow factors.
+- **net of costs the edge vanishes**: own-PEAD long-short gross +11.2% / IR 0.75, but **net of 5bps spread → +0.1% / IR 0.02** (maxDD −4.2%). A real but economically razor-thin signal; not tradable alone.
 - Three real bugs fixed in the skill to get here: EDGAR `sicCode`→`sic`; SUE winsorization (σ→0 gave std 840); event-window filter (events 2011-2026 vs prices → OOS=0/0).
-- Survivorship-free / deep-history estimates need a **Sharadar** key (none free); see `paper1_RL/DATA_SOURCES.md`.
+- **Binding constraint is data, not method**: need depth + small-cap breadth + survivorship-free membership (Sharadar/CRSP). None free; see `paper1_RL/DATA_SOURCES.md`.
+- Written up in **`paper3/paper_skeleton.tex`** (9 pp, TikZ pipeline + drift/cross-config/fundamentals/PnL figures; honest null). Figures live in `paper3/figures/` (gitignore has a `!paper3/figures/*.png` exception over the global `*.png` ignore — keep it).
 
 ## User preferences (durable)
 
