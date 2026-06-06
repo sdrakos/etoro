@@ -65,6 +65,16 @@ hits your target (capped at 3x). Example trade-off (long-only, real eToro prices
 
 There is **no free lunch**: more profit always comes with proportionally bigger drops.
 
+### Why there is no stop-loss / take-profit
+
+We tested a hard stop-loss on the real-price 5-product book and it **hurts**: a tight −8% stop
+*lowered* the information ratio (1.52 → 1.42) and *raised* the worst drawdown (−9% → −12%), because
+it whipsaws — it sells on intra-month noise, sits in cash, and misses the recovery. Looser stops
+(−12%, −20%) never trigger on a diversified, vol-scaled book, so they do nothing. Take-profit is
+worse for a trend strategy: it cuts the few big winners that drive the returns. Risk is instead
+controlled by **diversification + volatility targeting + the BOCPD changepoint overlay** — a "smart
+brake" that reacts to a genuine *change in market behaviour*, not to a single price ticking down.
+
 ## Safety
 
 - The default path is **dry-run, signal-only** — nothing is sent anywhere.
