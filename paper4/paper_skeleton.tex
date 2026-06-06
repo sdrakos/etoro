@@ -2,6 +2,7 @@
 \usepackage[margin=1in]{geometry}
 \usepackage{amsmath, mathtools, amssymb, amsthm}
 \usepackage{graphicx}
+\usepackage{float}
 \usepackage{booktabs}
 \usepackage{xcolor}
 \usepackage[colorlinks=true, linkcolor=blue, citecolor=blue, urlcolor=blue]{hyperref}
@@ -133,7 +134,7 @@ bleed across a structurally low-momentum, highly-correlated, efficient large-cap
 report this as a clean null and move to the setting where the same logic is alive
 (Figure~\ref{fig:negative}).
 
-\begin{figure}[h]
+\begin{figure}[H]
 \centering
 \includegraphics[width=0.78\textwidth]{figures/fig_negative.png}
 \caption{Out-of-sample (2017--2024), net-of-cost information ratio. Cross-sectional momentum on
@@ -174,7 +175,7 @@ with next-day returns $\rho$ and cost rate $c$, in the direct-reinforcement spir
 from a single asset's features. Figure~\ref{fig:arch} summarizes the architecture and the ten
 per-asset features.
 
-\begin{figure}[h]
+\begin{figure}[H]
 \centering
 \includegraphics[width=0.92\textwidth]{figures/fig_architecture.png}
 \caption{The belief-state Deep Momentum Network. Ten per-asset, per-day features---five
@@ -202,7 +203,7 @@ Ratio $0.67$ against five configurations), beating the fixed multi-horizon rules
 at a smaller maximum drawdown ($-17\%$ vs $-21\%$). The nested procedure selected the same model
 size (hidden $=16$) in both folds, indicating a stable rather than fragile choice.
 
-\begin{table}[h]
+\begin{table}[H]
 \centering
 \begin{tabular}{lrrrr}
 \toprule
@@ -216,7 +217,7 @@ ML LSTM Deep Momentum Network (nested)        & $\mathbf{0.58}$ & $1.98$ & $0.67
 \label{tab:main}
 \end{table}
 
-\begin{figure}[h]
+\begin{figure}[H]
 \centering
 \includegraphics[width=0.82\textwidth]{figures/fig_ml_equity.png}
 \caption{Out-of-sample equity curves (\EUR$10{,}000$ start, net of costs, each scaled to $10\%$
@@ -247,7 +248,7 @@ large-caps; they belong to a separate weak-signal equity study, not to this time
 The consistent lesson is that the lever is the diversity of \emph{independent assets}
 (Section~\ref{sec:diversity}), not the richness of \emph{features}.
 
-\begin{table}[h]
+\begin{table}[H]
 \centering
 \begin{tabular}{lrr}
 \toprule
@@ -284,7 +285,7 @@ Consistently, five well-chosen diversified ETFs outperform one hundred correlate
 diversity, measured by low cross-correlation, is the lever---not the number of names or sectors
 (Figure~\ref{fig:diversity}).
 
-\begin{figure}[h]
+\begin{figure}[H]
 \centering
 \includegraphics[width=0.74\textwidth]{figures/fig_diversification.png}
 \caption{Sharpe ratio (blue, left axis) and average pairwise correlation (red, right axis) for
@@ -310,7 +311,7 @@ dollar and energy), so stacking it on equities adds return where it hurts most (
 and~\ref{fig:alloc}); we flag the obvious risk that the overlay uses leverage and that the
 equity--trend diversification, while historically negative in crises, is not guaranteed.
 
-\begin{figure}[h]
+\begin{figure}[H]
 \centering
 \includegraphics[width=0.82\textwidth]{figures/fig_beat_buyhold.png}
 \caption{Out-of-sample (\EUR$10{,}000$ start, net): the return-stacked overlay (red, full equities
@@ -319,7 +320,7 @@ leverage-free $50/50$ blend (green) is the lower-risk option.}
 \label{fig:beat}
 \end{figure}
 
-\begin{figure}[h]
+\begin{figure}[H]
 \centering
 \includegraphics[width=0.66\textwidth]{figures/fig_alloc_2022.png}
 \caption{The strategy's positions during the 2022 selloff: short almost everything (equities,
@@ -348,7 +349,7 @@ with a \emph{conservative} fractional Kelly---never full Kelly, which over-bets.
 are provided as a standalone module (\texttt{paper4/code/sizing.py}) usable independently of the
 strategy.
 
-\begin{figure}[h]
+\begin{figure}[H]
 \centering
 \includegraphics[width=0.8\textwidth]{figures/fig_sizing.png}
 \caption{Out-of-sample (\EUR$10{,}000$ start, net of costs): the fixed rule, the ML LSTM, and the
@@ -358,7 +359,7 @@ exceptional equity bull on raw return.}
 \label{fig:sizing}
 \end{figure}
 
-\begin{table}[h]
+\begin{table}[H]
 \centering
 \begin{tabular}{lrr}
 \toprule
