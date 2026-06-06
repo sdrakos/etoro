@@ -33,3 +33,17 @@ def test_build_weights_variants_run():
         row = W[260]
         assert abs(np.nansum(row)) < 1e-9
         assert np.nansum(np.abs(row)) <= 1.0 + 1e-9
+
+def test_belief_gated_trades_only_significant_names():
+    # belief_gated must EXCLUDE statistically-insignificant trends (composition changes IR,
+    # unlike a magnitude scale which xs_weights normalizes away).
+    T, N = 300, 20
+    rng = np.random.default_rng(1)
+    close = np.cumprod(1 + rng.normal(0.0003, 0.01, (T, N)), axis=0) * 100
+    vel = rng.normal(0, 1e-3, (T, N))
+    sev = np.zeros((T, N))
+    sig = np.zeros((T, N)); sig[:, :10] = 5.0; sig[:, 10:] = 0.1   # first 10 significant
+    W = build_weights("belief_gated", close, vel, sig, sev, k=3, warmup=252, sig_thresh=1.0)
+    row = W[260]
+    assert np.allclose(row[10:], 0.0)               # insignificant names never traded
+    assert np.nansum(np.abs(row)) > 0               # significant names do trade

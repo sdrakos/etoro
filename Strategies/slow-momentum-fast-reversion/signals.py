@@ -31,12 +31,16 @@ def momentum_matrix(close, lookback=252, skip=21):
 
 
 def build_weights(variant, close, vel, trend_sig, sev, k, warmup=252,
-                  sig_clip=2.0, sev_floor=0.2):
+                  sig_thresh=1.0, sev_floor=0.2):
     """Return (T,N) weights for one of: tsmom | cpd_momentum | belief_gated.
 
     tsmom        : score = 12-1 momentum; full gross.
-    cpd_momentum : score = Kalman velocity; gross scaled by (1 - portfolio severity).
-    belief_gated : score = velocity * significance gate; gross scaled by (1 - severity).
+    cpd_momentum : score = Kalman velocity; gross scaled by time-varying (1 - severity).
+    belief_gated : velocity ranking, but ONLY among names whose trend is statistically
+                   significant (|trend_sig| >= sig_thresh); time-varying severity gross gate.
+                   Significance changes WHICH names trade (book composition), so it moves IR
+                   — a magnitude multiplier would not, since xs_weights is rank-based and
+                   normalizes magnitude away. This is what distinguishes it from cpd_momentum.
     """
     T, N = close.shape
     W = np.zeros((T, N))
@@ -49,11 +53,11 @@ def build_weights(variant, close, vel, trend_sig, sev, k, warmup=252,
             score = zscore_xs(vel[t])
             gate = 1.0 - np.nanmean(sev[t])
         elif variant == "belief_gated":
-            g = np.clip(np.abs(trend_sig[t]) / sig_clip, 0.0, 1.0)
-            score = zscore_xs(vel[t]) * g
+            score = zscore_xs(vel[t])
+            score[np.abs(trend_sig[t]) < sig_thresh] = np.nan   # drop insignificant trends
             gate = 1.0 - np.nanmean(sev[t])
         else:
             raise ValueError(f"unknown variant {variant!r}")
-        gate = max(gate, sev_floor)
+        gate = max(gate, sev_floor)         # never fully flat; keep some exposure
         W[t] = xs_weights(score, k) * gate
     return W
