@@ -225,6 +225,49 @@ annualized volatility). The learned Deep Momentum Network (blue) tracks above th
 \label{fig:mlequity}
 \end{figure}
 
+\subsection{What does not help (and why parsimony wins)}
+\label{sec:ablation}
+
+A recurring temptation is to enrich the feature set. We tested this directly and report the
+result honestly: on this noisy, low-signal data, almost every addition we tried \emph{reduced}
+out-of-sample performance (Table~\ref{tab:ablation}, single fixed configuration for a like-for-like
+comparison). Three findings stand out. First, volatility-normalized multi-horizon returns alone
+already capture most of the edge ($\IR=0.55$); the Kalman belief and changepoint signals raise the
+\emph{statistical significance} of the result (Newey--West $t$ from $1.56$ to $2.05$) more than its
+point estimate---they buy robustness, not raw return. Second, naive enrichments overfit: adding the
+Kalman signals without the changepoint, or adding a trend-acceleration feature, both dropped the
+out-of-sample $\IR$ sharply. Third, \emph{technical-analysis indicators are redundant}: RSI, MACD,
+and Bollinger \%b alone produced no out-of-sample edge ($\IR=-0.02$), and appending them to the
+returns \emph{hurt} ($0.55\!\to\!0.15$)---they are lossy transformations of the same price
+information the network already extracts from raw returns, consistent with the simple-beats-complex
+evidence of \cite{zeng2023}. Finally, company fundamentals (value, quality, profitability) are
+\emph{inapplicable} to the diversified ETF basket---an index fund has no book-to-price or ROE---and
+on cross-sectional equities, where they do apply, such factors are individually fragile in modern
+large-caps; they belong to a separate weak-signal equity study, not to this time-series setting.
+The consistent lesson is that the lever is the diversity of \emph{independent assets}
+(Section~\ref{sec:diversity}), not the richness of \emph{features}.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lrr}
+\toprule
+Feature set (single fixed config, OOS 2016--2024, net) & IR & NW-$t$ \\
+\midrule
+Momentum + volatility only (6 features)            & $0.55$ & $1.56$ \\
+\quad + Kalman belief signals (9)                  & $0.13$ & $0.46$ \\
+\quad + BOCPD changepoint $=$ full (10)            & $\mathbf{0.56}$ & $\mathbf{2.05}$ \\
+\quad + trend acceleration (11)                    & $0.17$ & $0.64$ \\
+Technical indicators only (RSI/MACD/\%b/vol, 4)     & $-0.02$ & $-0.07$ \\
+Returns $+$ technical indicators (9)               & $0.15$ & $0.61$ \\
+\bottomrule
+\end{tabular}
+\caption{Feature ablation. The full belief-state set maximizes statistical significance; naive
+enrichments and engineered technical indicators reduce out-of-sample performance. A single fixed
+configuration is used throughout for comparability (nested selection could shift absolute levels;
+the qualitative ordering is robust).}
+\label{tab:ablation}
+\end{table}
+
 \section{Where the Edge Comes From: Diversity, Not Count}
 \label{sec:diversity}
 
