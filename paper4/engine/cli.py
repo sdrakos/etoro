@@ -36,7 +36,7 @@ def _save_cache(mp):
 
 
 def _real_client():
-    from back.etoro_api.client import get_server_client
+    from back.etoro_api.server import get_server_client
     return get_server_client()
 
 
