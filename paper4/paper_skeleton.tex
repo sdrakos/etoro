@@ -130,7 +130,18 @@ the S\&P~100 and between $-0.28$ and $-0.47$ on the broader sample across daily 
 rebalancing. A market-level Bayesian changepoint overlay did not help (it moved the information
 ratio from $-0.36$ to $-0.37$): the losses are not concentrated in detectable regime breaks but
 bleed across a structurally low-momentum, highly-correlated, efficient large-cap universe. We
-report this as a clean null and move to the setting where the same logic is alive.
+report this as a clean null and move to the setting where the same logic is alive
+(Figure~\ref{fig:negative}).
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.78\textwidth]{figures/fig_negative.png}
+\caption{Out-of-sample (2017--2024), net-of-cost information ratio. Cross-sectional momentum on
+US large-cap equities (realistic spread plus borrow) is negative; the same trend logic applied as
+time-series momentum to a diversified ETF basket is positive, and the learned Deep Momentum
+Network improves on the fixed rule.}
+\label{fig:negative}
+\end{figure}
 
 \section{Belief-State Features and the Deep Momentum Network}
 \label{sec:method}
@@ -189,10 +200,18 @@ Rules time-series momentum (fixed)            & $0.47$ & --     & --     & $-21\
 ML LSTM Deep Momentum Network (nested)        & $\mathbf{0.58}$ & $1.98$ & $0.67$ & $\mathbf{-17\%}$ \\
 \bottomrule
 \end{tabular}
-\caption{Honest nested out-of-sample comparison on the eighteen-ETF basket. Figures
-\texttt{etf\_ml\_vs\_rules.png}.}
+\caption{Honest nested out-of-sample comparison on the eighteen-ETF basket.}
 \label{tab:main}
 \end{table}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.82\textwidth]{figures/fig_ml_equity.png}
+\caption{Out-of-sample equity curves (\EUR$10{,}000$ start, net of costs, each scaled to $10\%$
+annualized volatility). The learned Deep Momentum Network (blue) tracks above the fixed rule
+(orange); buy-and-hold S\&P~500 (gray) is shown for reference but carries far larger drawdowns.}
+\label{fig:mlequity}
+\end{figure}
 
 \section{Where the Edge Comes From: Diversity, Not Count}
 \label{sec:diversity}
@@ -207,7 +226,18 @@ $0.03$ and a standalone Sharpe of $0.19$. Combining the two---twenty-seven instr
 Sharpe of $0.34$, \emph{higher than either component alone}: the diversification ``free lunch.''
 Consistently, five well-chosen diversified ETFs outperform one hundred correlated equities
 (information ratio $+0.54$ vs $+0.09$) under the identical rule. The lesson is that asset-class
-diversity, measured by low cross-correlation, is the lever---not the number of names or sectors.
+diversity, measured by low cross-correlation, is the lever---not the number of names or sectors
+(Figure~\ref{fig:diversity}).
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.74\textwidth]{figures/fig_diversification.png}
+\caption{Sharpe ratio (blue, left axis) and average pairwise correlation (red, right axis) for
+twenty-two sector-diversified equities, five uncorrelated diversifiers, and their union. The
+combined book's Sharpe exceeds either component's: combining low-correlation streams is the
+``free lunch.''}
+\label{fig:diversity}
+\end{figure}
 
 \section{Practical Deployment: Beating Buy-and-Hold by Combining}
 \label{sec:deploy}
@@ -221,10 +251,27 @@ versus \EUR$29{,}825$ for buy-and-hold S\&P~500, with a higher Sharpe ($0.98$ vs
 comparable drawdown; a leverage-free $50/50$ blend has the best risk-adjusted profile (Sharpe
 $1.04$, maximum drawdown roughly halved). The mechanism is that the trend sleeve earns precisely
 when equities fall (it was positive through the 2022 selloff, short bonds and equities, long the
-dollar and energy), so stacking it on equities adds return where it hurts most. Figure
-\texttt{etf\_beat\_buyhold.png} shows the equity curves; we flag the obvious risk that the
-overlay uses leverage and that the equity--trend diversification, while historically negative in
-crises, is not guaranteed.
+dollar and energy), so stacking it on equities adds return where it hurts most (Figures~\ref{fig:beat}
+and~\ref{fig:alloc}); we flag the obvious risk that the overlay uses leverage and that the
+equity--trend diversification, while historically negative in crises, is not guaranteed.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.82\textwidth]{figures/fig_beat_buyhold.png}
+\caption{Out-of-sample (\EUR$10{,}000$ start, net): the return-stacked overlay (red, full equities
+plus a half-sized trend sleeve, $1.5\times$ gross) ends above buy-and-hold S\&P~500 (gray); the
+leverage-free $50/50$ blend (green) is the lower-risk option.}
+\label{fig:beat}
+\end{figure}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.66\textwidth]{figures/fig_alloc_2022.png}
+\caption{The strategy's positions during the 2022 selloff: short almost everything (equities,
+bonds, gold), long only the US dollar and energy---the two assets that rose---illustrating the
+long/short trend adaptation that earns when equities fall.}
+\label{fig:alloc}
+\end{figure}
 
 \section{Scope and Limitations}
 \label{sec:scope}
