@@ -1,0 +1,74 @@
+{
+  "n_events": 14493,
+  "n_train": 8708,
+  "n_test": 5785,
+  "profile_events_used": 8708,
+  "sector_neutral": true,
+  "half_life_days": null,
+  "optimal_horizon_days": 51,
+  "cum_drift_per_SUE_pct": 0.075,
+  "marginal_drift_bp": {
+    "day1": 0.44,
+    "day5": -0.58,
+    "day10": 0.37,
+    "day20": 1.07,
+    "day40": -0.25
+  },
+  "oos_IR": 0.737,
+  "oos_t_NW": 2.54,
+  "durability_trend_per_year": -0.0064,
+  "IR_by_year": [
+    {
+      "year": 2015,
+      "IR": 2.071,
+      "t_NW": 1.1
+    },
+    {
+      "year": 2016,
+      "IR": 0.301,
+      "t_NW": 0.32
+    },
+    {
+      "year": 2017,
+      "IR": 1.403,
+      "t_NW": 1.74
+    },
+    {
+      "year": 2018,
+      "IR": 1.031,
+      "t_NW": 1.27
+    },
+    {
+      "year": 2019,
+      "IR": 0.254,
+      "t_NW": 0.33
+    },
+    {
+      "year": 2020,
+      "IR": -0.199,
+      "t_NW": -0.26
+    },
+    {
+      "year": 2021,
+      "IR": 1.073,
+      "t_NW": 1.22
+    },
+    {
+      "year": 2022,
+      "IR": 1.568,
+      "t_NW": 1.78
+    },
+    {
+      "year": 2023,
+      "IR": 0.414,
+      "t_NW": 0.44
+    },
+    {
+      "year": 2024,
+      "IR": 1.811,
+      "t_NW": 1.71
+    }
+  ],
+  "sue_persistence_rho": 0.17,
+  "sue_persistence_t": 20.48
+}

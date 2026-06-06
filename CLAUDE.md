@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-`etoro/` is **one** quantitative-trading project with four components that share the same
+`etoro/` is **one** quantitative-trading project whose components share the same
 `back/.env` secrets and data conventions:
 
 - **`back/`** — FastAPI layer. (a) Wrapper over the Massive.com (Polygon.io rebrand) REST API, 104 endpoints across 9 routers; (b) the eToro Public API integration (`back/etoro_api/` typed client + vault, `back/routers/etoro/` proxy/social/portfolio/order routers) for the user's real eToro account. Used directly via HTTP or imported by other tools.
@@ -12,8 +12,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **`trader/`** — Phase 1 Python backtesting framework on backtrader. Strategy-agnostic: adding a new strategy is dropping one file under `trader/strategies/`. Default data source is Yahoo (keyless); Massive optional via `--source`.
 - **`paper1_RL/`** — Research component: the **Differential Entropic Reward (DER)** paper (`der_paper_full.tex/.pdf`) plus its reproducibility code. Includes the signal-engine + DER-risk-layer alpha experiments (PEAD, sector-neutral momentum, VIX-driven θ) validated on Yahoo 2015–2024 — see `docs/superpowers/specs|plans/2026-06-03-der-alpha-signal-engine*`.
 - **`paper2_RL/`** — follow-on research (in progress).
+- **`paper3/`** — *"A Disciplined Pipeline for Weak Cross-Sectional Equity Signals"* (PEAD + same-industry lead-lag + utility gate + risk-parity + regime sizing). Built/validated by the `quantiq-pead` skill below.
+- **`paper4/`** — *"Belief-State RL for Cross-Sectional Equity Selection"* (`paper4/code/`: Kalman LLT + BOCPD belief states → TSMOM/cpd/belief-gated variants, honest costs incl. short financing, Deflated Sharpe). Pure-numpy, with tests + cached data (`paper4_close.npz`).
+- **`tutorials/`** — Greek beginner explainers (XeLaTeX/DejaVu Serif), e.g. `signals_tutorial_GR.tex` (signals: IC, IR, Newey-West t, gate, √N combination, risk parity).
+- **`.Claude/Skills/quantiq-pead/`** — the SEC-EDGAR PEAD/lead-lag engine: point-in-time SUE from EDGAR (no analyst data), Fama-MacBeth own/peer separation, drift/half-life/durability event study, risk-parity combination. `analysis/run_big_universe.py` orchestrates own-PEAD + lead-lag on a wide price panel.
 
 Phase status, layout, and end-user CLI examples live in `README.md` — don't duplicate them here.
+
+### Real-data PEAD findings (2026-06, free EDGAR + Yahoo)
+
+Honest, fragile results — **signals are universe/period-dependent** (the paper3 thesis, demonstrated live):
+- **own-PEAD**: null on mega-caps (150 names, t=1.2) but **significant when mid-caps included** (401 names 2015-2024, OOS IR 0.74, NW t=2.54, durable) — matches theory (PEAD stronger in smaller names).
+- **same-industry lead-lag**: significant only on the narrow 150 mega-cap universe (t=2.61); **null on the broad 401** (t=0.10) → small-universe artifact, fragile.
+- Three real bugs fixed in the skill to get here: EDGAR `sicCode`→`sic`; SUE winsorization (σ→0 gave std 840); event-window filter (events 2011-2026 vs prices → OOS=0/0).
+- Survivorship-free / deep-history estimates need a **Sharadar** key (none free); see `paper1_RL/DATA_SOURCES.md`.
 
 ## User preferences (durable)
 
@@ -30,7 +42,7 @@ The single source of truth for `MASSIVE_KEY` is `back/.env`. `trader/config.py` 
 
 The key is **lazy**: `config.py` loads `MASSIVE_KEY` at import without raising, and `config.get_massive_key()` raises `RuntimeError` only when something actually needs it (i.e. `source="massive"`). This lets the whole framework run keyless on the default Yahoo source. Don't reintroduce an import-time raise.
 
-`back/.env` is the single store for **all** project secrets: `MASSIVE_KEY`, the eToro keys (`ETORO_PUBLIC_KEY`, `ETORO_PRIVATE_KEY`), and `GIT_HUB_TOKEN` (used for pushes). Never duplicate or hard-code these elsewhere; `back/.env.example` is the committed template.
+`back/.env` is the single store for **all** project secrets: `MASSIVE_KEY`, the eToro keys (`ETORO_PUBLIC_KEY`, `ETORO_PRIVATE_KEY`), `FINNHUB_API_KEY` (earnings estimates/surprises — free tier = last 4 quarters only), `GIT_HUB_TOKEN` (used for pushes), and the Microsoft Graph email creds (`CLIENT_ID`, `CLIENT_SECRET`, `TENANT_ID`, `USER_EMAIL`) used to send mail via Graph `/sendMail` (e.g. `tutorials/send_graph_email.py` — base64 done in-process, creds never printed). Never duplicate or hard-code these elsewhere; `back/.env.example` is the committed template.
 
 ### Adding a new strategy
 

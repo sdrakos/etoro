@@ -1,0 +1,247 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath, mathtools, amssymb, amsthm}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage[colorlinks=true, linkcolor=blue, citecolor=blue, urlcolor=blue]{hyperref}
+
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}
+\newtheorem{proposition}[theorem]{Proposition}
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{remark}[theorem]{Remark}
+
+\newcommand{\todo}[1]{\vspace{0.3em}\noindent\fbox{\parbox{0.95\textwidth}{\textit{\textbf{Draft note:} #1}}}\vspace{0.3em}}
+\newcommand{\SUE}{\mathrm{SUE}}
+\newcommand{\AR}{\mathrm{AR}}
+\newcommand{\IR}{\mathrm{IR}}
+\newcommand{\IC}{\mathrm{IC}}
+
+\title{\textbf{A Disciplined Pipeline for Weak Cross-Sectional Equity Signals:\\
+Point-in-Time PEAD, Same-Industry Lead--Lag, Utility-Weighted Gating,\\
+Risk-Parity Combination, and Regime-Aware Sizing}}
+\author{Stefanos Drakos\\
+\small AGEL AI I.K.E., Rhodes, Greece\\
+\small ORCID: 0000-0001-7417-2444}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We present a transparent, reproducible pipeline for constructing and \emph{honestly evaluating}
+weak cross-sectional equity signals from free, point-in-time data. The pipeline has five stages:
+(i) a time-series post-earnings-announcement-drift (PEAD) signal built only from reported earnings
+via SEC EDGAR, point-in-time by construction; (ii) a same-industry lead--lag signal that routes a
+firm's earnings surprise to its industry peers; (iii) a utility-weighted gate that admits a signal
+only if its long--short portfolio carries economically significant, time-stable edge; (iv) a
+risk-parity (equal-risk-contribution) combination of the surviving signals; and (v) a
+regime-aware sizing layer that scales exposure by the prevailing volatility state. Two
+methodological points are central. First, the same-industry lead--lag effect is \emph{confounded}
+with own-firm PEAD through earnings-season clustering; we separate them with a daily
+Fama--MacBeth cross-sectional regression rather than ad-hoc exclusion. Second, we treat
+\emph{durability}---the decay of edge across calendar time---as the headline diagnostic, not the
+in-sample information ratio. On real US equity data
+[\emph{universe, sample, headline} $\IR$/$t_{\mathrm{NW}}$/\emph{half-life}/\emph{durability to be inserted}], the
+combined signal achieves [\ldots]. We argue that the contribution is the evaluation protocol
+itself: a null result with correct Newey--West inference and a reported decay profile is a valid,
+publishable outcome. These results operationalize the anomalies of Bernard and Thomas (1989) and
+Cohen and Frazzini (2008) under the overfitting controls of Harvey, Liu, and Zhu (2016) and Bailey
+and L\'opez de Prado (2014).
+\end{abstract}
+
+\section{Introduction}
+\label{sec:intro}
+
+\paragraph{Problem.} Cross-sectional equity signals derived from freely available daily data are
+individually weak (information coefficients of order $0.02$--$0.05$) and increasingly fragile: the
+classical PEAD drift of roughly two percent over sixty trading days documented by Bernard and
+Thomas (1989) has attenuated materially in modern samples. In this regime, model \emph{capacity}
+is a liability: flexible learners fit noise and destroy otherwise robust low-capacity factors.
+
+\paragraph{Prior work.} PEAD originates with Ball and Brown (1968) and is named and characterized
+by Bernard and Thomas (1989), using a time-series (seasonal-random-walk) earnings expectation;
+Foster, Olsen, and Shevlin (1984) establish the standardized-unexpected-earnings construction.
+Cross-firm information diffusion---return predictability across economically linked firms---is
+documented by Cohen and Frazzini (2008) and, at the industry level, by Menzly and Ozbas (2010).
+Volatility-managed sizing is analyzed by Moreira and Muir (2017). On the evaluation side, Harvey,
+Liu, and Zhu (2016) quantify the multiple-testing problem in factor research, and Bailey and
+L\'opez de Prado (2014) introduce the Deflated Sharpe Ratio; combinatorial purged cross-validation
+and the probability of backtest overfitting are developed in L\'opez de Prado (2018).
+
+\paragraph{Contribution.} We do not claim a new anomaly. We contribute (1) a fully point-in-time,
+free-data construction of PEAD and a same-industry lead--lag signal; (2) a Fama--MacBeth separation
+of the lead--lag effect from own-firm PEAD, which we show is necessary because earnings-season
+clustering confounds the naive estimator; (3) a utility-weighted gate that judges signals by
+economic P\&L rather than accuracy; (4) a risk-parity combination and a regime-aware sizing layer;
+and (5) an evaluation protocol centered on \emph{durability}. The entire pipeline is released as
+open code.
+
+\paragraph{Stance on honesty.} Following the discipline of the overfitting literature, we
+pre-register falsification thresholds and report decay explicitly. Where the evidence does not
+support a directional claim, we say so; a correctly-inferred null is reported as such.
+
+\section{Data and point-in-time construction}
+\label{sec:data}
+
+We use SEC EDGAR XBRL company facts and submissions, which provide, for each disclosure, the
+\emph{filing date}---rendering the data point-in-time by construction. Quarterly diluted earnings
+per share are extracted with tag fallbacks; the fourth fiscal quarter is derived as the annual
+figure less the first three quarters. Prices are adjusted closes for an \emph{as-traded} universe
+(historical index membership) to avoid survivorship bias. All positions are formed with a strict
+one-day execution lag ($T{+}1$) relative to the filing date.
+
+\begin{definition}[Standardized unexpected earnings]\label{def:sue}
+For firm $i$ and fiscal quarter $t$, with $E_{i,t}$ the reported quarterly EPS,
+\[
+\SUE_{i,t}=\frac{E_{i,t}-E_{i,t-4}}{\sigma_{i,t}},\qquad
+\sigma_{i,t}=\operatorname{std}\bigl(\{E_{i,s}-E_{i,s-4}\}_{s=t-W}^{t-1}\bigr),
+\]
+where $E_{i,t-4}$ is the same quarter one year prior (seasonal random walk) and $W$ a trailing
+window (default $W=8$). $\SUE$ requires no analyst data and is point-in-time.
+\end{definition}
+
+\section{Signals}
+\label{sec:signals}
+
+\subsection{Own-firm PEAD}
+The own-firm signal is the cross-sectionally standardized $\SUE_{i,t}$, active over a holding
+window $[\,T{+}1,\,T{+}1{+}H)$ after the announcement, with $H$ chosen from the measured decay
+profile (Section~\ref{sec:eventstudy}).
+
+\subsection{Same-industry lead--lag}
+\begin{definition}[Peer-implied surprise]\label{def:peer}
+Let $\mathcal{P}(i)$ be the same-SIC peers of firm $i$. The peer-implied surprise of firm $j$ on
+day $d$ is
+\[
+s^{\mathrm{peer}}_{j,d}=\sum_{i:\,j\in\mathcal{P}(i)} z(\SUE_{i})\,\mathbf{1}\{d\in[\tau_i{+}1,\tau_i{+}1{+}H)\},
+\]
+where $\tau_i$ is firm $i$'s announcement day and $z(\cdot)$ the cross-sectional standardization.
+\end{definition}
+This operationalizes the economic-link predictability of Cohen and Frazzini (2008) at the industry
+level (Menzly and Ozbas, 2010).
+
+\section{Methodology}
+\label{sec:method}
+
+\subsection{Event-study drift profile and decay}
+\label{sec:eventstudy}
+\begin{definition}[Drift profile and cumulative drift]\label{def:drift}
+With $z_e$ the standardized surprise of event $e$ and $\AR_{e,k}$ the market-adjusted abnormal
+return $k$ days after entry,
+\[
+b(k)=\frac{\sum_e z_e\,\AR_{e,k}}{\sum_e z_e^2},\qquad B(h)=\sum_{k=1}^{h}b(k).
+\]
+\end{definition}
+We fit $b(k)\approx b_0 e^{-k/\tau}$ on the leading window and report the half-life
+$t_{1/2}=\tau\ln 2$ and the horizon $h^\star$ at which marginal drift loses significance.
+
+\todo{Insert measured $b(k)$, $B(h)$, $t_{1/2}$, $h^\star$ on real data; Figure with the three
+panels (drift, cumulative, durability).}
+
+\subsection{Calendar-time inference}
+Because holding windows overlap and announcements cluster in earnings season, event-time standard
+errors are badly understated. We therefore form a daily calendar-time long--short portfolio and
+apply Newey--West (1987) standard errors with lag equal to the holding horizon. The headline
+statistics are the annualized information ratio $\IR=\sqrt{252}\,\bar r/\sigma_r$ and the
+Newey--West $t$-statistic.
+
+\subsection{Separating lead--lag from own-firm PEAD: Fama--MacBeth}
+Naively measuring the peer effect double-counts own-firm PEAD because firm $j$ typically announces
+near its peers. We instead run, each day $d$, the cross-sectional regression
+\[
+\AR_{\cdot,d}=\alpha_d+\beta^{\mathrm{own}}_d\,s^{\mathrm{own}}_{\cdot,d}
++\beta^{\mathrm{peer}}_d\,s^{\mathrm{peer}}_{\cdot,d}+\varepsilon_{\cdot,d},
+\]
+and treat the time series $\{\beta^{\mathrm{peer}}_d\}$ as the lead--lag factor return (Fama and
+MacBeth, 1973), with Newey--West inference. The own coefficient absorbs PEAD, isolating the
+genuine cross-firm effect.
+
+\todo{Report $\IR$/$t_{\mathrm{NW}}$ of $\beta^{\mathrm{peer}}$ with vs.\ without the own control;
+the gap quantifies the confound.}
+
+\subsection{Utility-weighted gate}
+\begin{definition}[Signal utility]\label{def:util}
+For a signal $S$ with cross-sectional weights $w_{i,d}=z(S)_{i,d}/\sum_i|z(S)_{i,d}|$ and next-day
+returns $r_{i,d+1}$, the daily utility is $u_d=\sum_i w_{i,d}\,r_{i,d+1}$ (a weight-times-return
+objective in the spirit of Jane Street's Kaggle scoring).
+\end{definition}
+\begin{proposition}[Gate equals portfolio Sharpe]\label{prop:gate}
+The annualized utility ratio $\sqrt{252}\,\bar u/\sigma_u$ equals the information ratio of the
+signal's dollar-neutral long--short portfolio. Hence gating on utility is equivalent to gating on
+risk-adjusted economic P\&L, not on classification accuracy.
+\end{proposition}
+\todo{One-line proof (definitional) + numerical cross-check on synthetic and real data.}
+A signal passes if its out-of-sample $\IR>0$, $|t_{\mathrm{NW}}|\ge t^\star$ (default $t^\star=2$,
+with the Deflated Sharpe Ratio and PBO reported alongside), and its late-subsample $\IR$ does not
+collapse.
+
+\subsection{Risk-parity combination}
+\begin{definition}[Equal-risk-contribution weights]\label{def:erc}
+Given surviving signals with portfolio return covariance $\Sigma$, the combination weights solve
+$w_i\,(\Sigma w)_i=\text{const}$ for all $i$ (equal risk contribution). The inverse-volatility
+special case is $w_i\propto 1/\sigma_i$.
+\end{definition}
+Weighting by risk---not capital---prevents a single noisy signal from dominating and adds no fitted
+parameters, avoiding a fresh layer of overfitting.
+
+\subsection{Regime-aware sizing}
+\begin{definition}[Volatility-target multiplier]\label{def:regime}
+With $\hat\sigma_d$ the trailing realized volatility of the (market or book) state and target
+$\sigma^\ast$, the exposure multiplier is
+$m_d=\min\!\bigl(\sigma^\ast/\hat\sigma_{d-1},\,c\bigr)$, capped at $c$ and lagged one day.
+\end{definition}
+This sizes the book down in high-volatility regimes and up in calm ones, in the spirit of Moreira
+and Muir (2017); it controls risk and does not forecast direction.
+
+\section{Evaluation protocol}
+\label{sec:eval}
+We use strictly walk-forward training/testing with an embargo; combinatorial purged
+cross-validation and the probability of backtest overfitting (L\'opez de Prado, 2018); the Deflated
+Sharpe Ratio (Bailey and L\'opez de Prado, 2014) to adjust for multiple trials; Newey--West
+inference throughout; and year-by-year durability as the primary robustness diagnostic. Falsifi
+cation thresholds are fixed in advance.
+
+\section{Results}
+\label{sec:results}
+\todo{Tables: (1) per-signal gate table (IR, $t_{\mathrm{NW}}$, mean IC, early/late IR, DSR, PBO);
+(2) lead--lag with/without own control; (3) combined book raw vs.\ regime-scaled (IR, vol, maxDD);
+(4) durability by year. Figures: drift/decay, lead--lag cumulative + durability, engine equity +
+exposure multiplier. Insert real-data numbers; synthetic validation figures may appear in an
+appendix as estimator sanity checks, clearly labeled as such.}
+
+\section{Scope and limitations}
+\label{sec:scope}
+Free daily data caps achievable edge; results are expected to be weak and possibly null, and we
+report them as such. Time-series $\SUE$ avoids analyst-consensus dependence but omits the
+revision channel. The same-industry map (SIC) is coarse relative to true supply-chain links; the
+lead--lag effect is the more fragile of the two signals and most exposed to spurious structure.
+Point-in-time fidelity depends on XBRL coverage (broadly complete only from about 2011).
+
+\section{Conclusion}
+\label{sec:conclusion}
+The pipeline turns two classical, mechanism-backed anomalies into point-in-time, free-data signals,
+separates a genuine cross-firm effect from its own-firm confound, combines weak signals by risk
+parity, and sizes the result by regime---while making honest, durability-centered evaluation the
+core deliverable. The value is reproducible methodology, whatever the sign of the final result.
+
+\begin{thebibliography}{99}
+\small
+\bibitem{ballbrown1968} Ball, R., and Brown, P. (1968). An empirical evaluation of accounting income numbers. \textit{Journal of Accounting Research} 6(2), 159--178.
+\bibitem{bt1989} Bernard, V. L., and Thomas, J. K. (1989). Post-earnings-announcement drift: delayed price response or risk premium? \textit{Journal of Accounting Research} 27, 1--36. \href{https://doi.org/10.2307/2491062}{doi:10.2307/2491062}.
+\bibitem{fos1984} Foster, G., Olsen, C., and Shevlin, T. (1984). Earnings releases, anomalies, and the behavior of security returns. \textit{The Accounting Review} 59(4), 574--603.
+\bibitem{cf2008} Cohen, L., and Frazzini, A. (2008). Economic links and predictable returns. \textit{The Journal of Finance} 63(4), 1977--2011. \href{https://doi.org/10.1111/j.1540-6261.2008.01379.x}{doi:10.1111/j.1540-6261.2008.01379.x}.
+\bibitem{mo2010} Menzly, L., and Ozbas, O. (2010). Market segmentation and cross-predictability of returns. \textit{The Journal of Finance} 65(4), 1555--1580. \todo{verify pages/DOI}
+\bibitem{mm2017} Moreira, A., and Muir, T. (2017). Volatility-managed portfolios. \textit{The Journal of Finance} 72(4), 1611--1644. \href{https://doi.org/10.1111/jofi.12513}{doi:10.1111/jofi.12513}.
+\bibitem{hlz2016} Harvey, C. R., Liu, Y., and Zhu, H. (2016). $\ldots$ and the cross-section of expected returns. \textit{Review of Financial Studies} 29(1), 5--68. \todo{verify pages/DOI}
+\bibitem{bldp2014} Bailey, D. H., and L\'opez de Prado, M. (2014). The Deflated Sharpe Ratio: correcting for selection bias, backtest overfitting, and non-normality. \textit{The Journal of Portfolio Management} 40(5), 94--107. \todo{verify pages/DOI}
+\bibitem{ldp2018} L\'opez de Prado, M. (2018). \textit{Advances in Financial Machine Learning}. Wiley.
+\bibitem{fm1973} Fama, E. F., and MacBeth, J. D. (1973). Risk, return, and equilibrium: empirical tests. \textit{Journal of Political Economy} 81(3), 607--636.
+\bibitem{nw1987} Newey, W. K., and West, K. D. (1987). A simple, positive semi-definite, heteroskedasticity and autocorrelation consistent covariance matrix. \textit{Econometrica} 55(3), 703--708.
+\bibitem{jt1993} Jegadeesh, N., and Titman, S. (1993). Returns to buying winners and selling losers: implications for stock market efficiency. \textit{The Journal of Finance} 48(1), 65--91. \todo{verify; momentum reference if used}
+\bibitem{lm2006} Livnat, J., and Mendenhall, R. R. (2006). Comparing the post-earnings-announcement drift for surprises calculated from analyst and time-series forecasts. \textit{Journal of Accounting Research} 44(1), 177--205. \todo{verify pages/DOI}
+\end{thebibliography}
+
+\end{document}

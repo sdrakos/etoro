@@ -1,0 +1,70 @@
+{
+  "market_neutral": true,
+  "hold": 60,
+  "peer_CLEAN_controls_own": {
+    "IR": 0.72,
+    "t_NW": 2.61,
+    "trend_per_year": -0.0004,
+    "IR_by_year": [
+      {
+        "year": 2015,
+        "IR": 1.639,
+        "t_NW": 2.02
+      },
+      {
+        "year": 2016,
+        "IR": 0.574,
+        "t_NW": 0.53
+      },
+      {
+        "year": 2017,
+        "IR": 0.348,
+        "t_NW": 0.4
+      },
+      {
+        "year": 2018,
+        "IR": -1.134,
+        "t_NW": -1.39
+      },
+      {
+        "year": 2019,
+        "IR": 0.745,
+        "t_NW": 0.89
+      },
+      {
+        "year": 2020,
+        "IR": 1.536,
+        "t_NW": 2.15
+      },
+      {
+        "year": 2021,
+        "IR": 1.736,
+        "t_NW": 1.91
+      },
+      {
+        "year": 2022,
+        "IR": 0.898,
+        "t_NW": 1.47
+      },
+      {
+        "year": 2023,
+        "IR": 0.258,
+        "t_NW": 0.28
+      },
+      {
+        "year": 2024,
+        "IR": 0.528,
+        "t_NW": 0.67
+      }
+    ]
+  },
+  "peer_contaminated_no_control": {
+    "IR": 0.698,
+    "t_NW": 2.52
+  },
+  "own_PEAD_for_reference": {
+    "IR": 0.435,
+    "t_NW": 1.66
+  },
+  "note": "peer_CLEAN is the genuine lead-lag (own PEAD regressed out each day, Fama-MacBeth). If contaminated >> clean, the naive peer effect was mostly own-firm PEAD leaking through earnings-season clustering."
+}

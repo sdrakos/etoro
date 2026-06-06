@@ -72,3 +72,19 @@ paper1_RL/backtest_results.csv
 
 # Local conversation log (Stop hook)
 claude.db
+
+# generated data/build artifacts (session 2026-06)
+*.npz
+*.npz.json
+__pycache__/
+.pytest_cache/
+.playwright-mcp/
+*.aux
+*.toc
+# quantiq-pead generated run artifacts (keep source, drop outputs)
+.Claude/Skills/quantiq-pead/analysis/prices*.csv
+.Claude/Skills/quantiq-pead/analysis/events*.csv
+.Claude/Skills/quantiq-pead/analysis/tickers.txt
+.Claude/Skills/quantiq-pead/analysis/sic*.json
+.Claude/Skills/quantiq-pead/analysis/*.png
+.Claude/Skills/quantiq-pead/results/*.png
