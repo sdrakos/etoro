@@ -3,12 +3,14 @@ needs no model; ML variant loads a frozen DMN + scaler and runs inference on the
 Also provides train_full: train ONE DMN on all history (for the admin `retrain` command)."""
 from __future__ import annotations
 import os, sys
-import numpy as np
 import torch
 
 _CODE = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "code"))
-if _CODE not in sys.path:
-    sys.path.insert(0, _CODE)
+_STRAT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..",
+                                      "Strategies", "slow-momentum-fast-reversion"))
+for _p in (_CODE, _STRAT):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 from features import build_features              # noqa: E402
 from ts_momentum import build_ts_weights         # noqa: E402
 from dmn import DeepMomentumNetwork, sharpe_loss  # noqa: E402
@@ -37,7 +39,7 @@ def train_full(close, tickers, name="prod", root=None, epochs=300, val_frac=0.15
     X, fwd = build_features(close)
     torch.manual_seed(0)
     T = X.shape[1]; vlo = int(T * (1 - val_frac))
-    Xt = torch.tensor(X[:, :T], dtype=torch.float32)
+    Xt = torch.tensor(X, dtype=torch.float32)
     mu = Xt.mean((0, 1), keepdim=True); sd = Xt.std((0, 1), keepdim=True) + 1e-6
     Xtr = (torch.tensor(X[:, :vlo], dtype=torch.float32) - mu) / sd
     ftr = torch.tensor(fwd[:, :vlo], dtype=torch.float32)
