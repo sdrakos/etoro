@@ -669,11 +669,16 @@ def _rw_universe(T=600, N=8, seed=0):
     rng = np.random.default_rng(seed)
     return np.cumprod(1 + rng.normal(0.0, 0.01, (T, N)), axis=0) * 100
 
-def test_clean_null_ir_near_zero():
-    close = _rw_universe()
-    res = run_variant("tsmom", close, k=2, warmup=252,
+def test_clean_null_no_significant_edge():
+    # random-walk universe -> no real signal: IR small AND not statistically significant.
+    # Needs a reasonably sized universe (N=30, T=2000) so the IR point estimate is stable;
+    # the real check is the Newey-West t-stat (significance), per the paper's clean-null claim.
+    rng = np.random.default_rng(0)
+    close = np.cumprod(1 + rng.normal(0.0, 0.01, (2000, 30)), axis=0) * 100
+    res = run_variant("tsmom", close, k=5, warmup=252,
                       spread_bps=0.0, short_fin_bps_annual=0.0)
-    assert abs(res["ir"]) < 0.8            # random walk -> no real edge
+    assert abs(res["ir"]) < 0.5
+    assert abs(res["nw_t"]) < 2.0
 
 def test_states_shapes():
     close = _rw_universe(T=300, N=4)
