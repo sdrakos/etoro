@@ -15,7 +15,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **`paper3/`** — *"A Disciplined Pipeline for Weak Cross-Sectional Equity Signals"* (PEAD + same-industry lead-lag + utility gate + risk-parity + regime sizing). Built/validated by the `quantiq-pead` skill below.
 - **`paper4/`** — *"Belief-State RL for Cross-Sectional Equity Selection"* (`paper4/code/`: Kalman LLT + BOCPD belief states → TSMOM/cpd/belief-gated variants, honest costs incl. short financing, Deflated Sharpe). Pure-numpy, with tests + cached data (`paper4_close.npz`).
 - **`tutorials/`** — Greek beginner explainers (XeLaTeX/DejaVu Serif), e.g. `signals_tutorial_GR.tex` (signals: IC, IR, Newey-West t, gate, √N combination, risk parity).
-- **`.Claude/Skills/quantiq-pead/`** — the SEC-EDGAR PEAD/lead-lag engine: point-in-time SUE from EDGAR (no analyst data), Fama-MacBeth own/peer separation, drift/half-life/durability event study, risk-parity combination. `analysis/run_big_universe.py` orchestrates own-PEAD + lead-lag on a wide price panel.
+- **`.Claude/Skills/quantiq-pead/`** — the SEC-EDGAR PEAD/lead-lag engine: point-in-time SUE from EDGAR (no analyst data), Fama-MacBeth own/peer separation, drift/half-life/durability event study, risk-parity combination. `analysis/run_big_universe.py` orchestrates own-PEAD + lead-lag on a wide price panel. `skill/sec-edgar/scripts/fundamentals_api.py` is the consolidated endpoint: `get_fundamentals(ua, tickers)` → all PiT line items in one call, `fundamental_factors(panel)` → value/quality/accruals/investment/buyback factors (the orthogonal signals to combine with PEAD).
 
 Phase status, layout, and end-user CLI examples live in `README.md` — don't duplicate them here.
 

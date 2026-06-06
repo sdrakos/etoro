@@ -29,7 +29,16 @@ TAG_FALLBACKS = {
                    "NetIncomeLossAvailableToCommonStockholdersBasic"],
     "revenue": ["RevenueFromContractWithCustomerExcludingAssessedTax",
                 "Revenues", "SalesRevenueNet"],
+    "gross_profit": ["GrossProfit"],
+    "operating_income": ["OperatingIncomeLoss"],
     "assets": ["Assets"],
+    "equity": ["StockholdersEquity",
+               "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest"],
+    "long_term_debt": ["LongTermDebtNoncurrent", "LongTermDebt"],
+    "cash": ["CashAndCashEquivalentsAtCarryingValue"],
+    "operating_cf": ["NetCashProvidedByUsedInOperatingActivities"],
+    "capex": ["PaymentsToAcquirePropertyPlantAndEquipment"],
+    "shares_out": ["CommonStockSharesOutstanding"],
     "shares_diluted": ["WeightedAverageNumberOfDilutedSharesOutstanding"],
 }
 

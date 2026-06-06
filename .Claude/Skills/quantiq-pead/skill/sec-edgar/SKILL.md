@@ -73,6 +73,19 @@ eps   = quarterly_eps(ec, ["AAPL","MSFT"])    # clean quarterly EPS (Q4 derived 
 `to_pointintime_daily` is the bridge from sparse quarterly facts to your daily price grid:
 each value turns on at its **filing date** and holds until the next filing — no look-ahead.
 
+### 2b. `fundamentals_api.py` — ONE endpoint for ALL fundamentals
+```python
+from fundamentals_api import get_fundamentals, fundamental_factors
+panel   = get_fundamentals("Name email@x.com", ["AAPL","MSFT"])   # all line items, PiT (one call)
+factors = fundamental_factors(panel)                              # derived signals (pure fn)
+```
+`get_fundamentals` pulls revenue, net income, gross/operating profit, assets, equity, long-term
+debt, cash, operating CF, capex, shares — merged into one per-(ticker, period) table keyed by the
+**latest `filed`** date (PiT). `fundamental_factors` derives: net/operating margin,
+gross-profits-to-assets (quality), FCF, accruals, debt-to-equity, ROE, asset-growth YoY
+(investment), shares YoY (buyback). Price-dependent factors (book-to-price, earnings yield) are
+left to the caller. Feed these into `gate.py` and `combine_signals.py` as orthogonal signals.
+
 ### 3. `sue_pead.py` — the PEAD signal, with NO analyst data
 The classic post-earnings-announcement drift uses a time-series earnings expectation
 (Foster 1977; Bernard & Thomas 1989), so you do **not** need (expensive) analyst consensus:
