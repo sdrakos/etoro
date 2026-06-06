@@ -89,3 +89,6 @@ __pycache__/
 .Claude/Skills/quantiq-pead/analysis/*.png
 .Claude/Skills/quantiq-pead/results/*.png
 .Claude/Skills/quantiq-pead/analysis/fundamentals*.csv
+
+# but DO keep paper figures
+!paper3/figures/*.png
