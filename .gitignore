@@ -4,6 +4,12 @@
 !.env.example
 *.key
 *.pem
+# Google Cloud / OAuth / service-account credentials
+*client_secret*.json
+client_secret_*.json
+service_account*.json
+*-credentials.json
+gcp-*.json
 
 # Python
 __pycache__/
