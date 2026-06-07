@@ -42,3 +42,42 @@ def test_nested_wf_fills_only_test_spans_and_evaluate_is_finite():
                               spread_bps=10.0, n_trials=1)
     for k in ("net_ir", "nw_t", "dsr", "n"):
         assert np.isfinite(res[k])
+
+
+def test_set_requires_grad_freezes_correctly():
+    net = models.make_gated_hybrid(10, models.GATED_GRID[0])
+    train_eval._set_requires_grad(net, lstm=True, attn=False)
+    assert all(p.requires_grad for p in net.lstm.parameters())
+    assert all(not p.requires_grad for p in net.enc.parameters())
+    assert net.gate.requires_grad is False
+    train_eval._set_requires_grad(net, lstm=False, attn=True)
+    assert all(not p.requires_grad for p in net.lstm.parameters())
+    assert all(p.requires_grad for p in net.enc.parameters())
+    assert net.gate.requires_grad is True
+
+
+def test_two_stage_trainer_returns_finite_and_right_shape():
+    import torch
+    rng = np.random.default_rng(0)
+    N, T, F = 3, 120, 10
+    X = rng.standard_normal((N, T, F)).astype("float32")
+    fwd = rng.standard_normal((N, T)).astype("float32") * 0.01
+    net, mu, sd, best = train_eval._train_fold_two_stage(
+        models.make_gated_hybrid, X, fwd, 0, T, models.GATED_GRID[0], epochs=6)
+    assert np.isfinite(best)
+    with torch.no_grad():
+        out = net((torch.tensor(X[:, :20], dtype=torch.float32) - mu) / sd)
+    assert out.shape == (3, 20)
+
+
+def test_nested_wf_accepts_two_stage_trainer():
+    rng = np.random.default_rng(0)
+    N, T, F = 3, 160, 10
+    X = rng.standard_normal((N, T, F)).astype("float32")
+    fwd = rng.standard_normal((N, T)).astype("float32") * 0.01
+    folds = train_eval.make_folds(T, warm=20, first_train=100, step=40)
+    POS, chosen, idx = train_eval.nested_walkforward(
+        models.make_gated_hybrid, models.GATED_GRID[:1], X, fwd, folds,
+        warm=20, epochs=4, trainer=train_eval._train_fold_two_stage)
+    assert np.allclose(POS[:, :100], 0.0)
+    assert idx.min() == 100

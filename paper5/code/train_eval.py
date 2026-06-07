@@ -85,21 +85,62 @@ def _train_fold(make, X, fwd, lo, hi, cfg, epochs=300, val_frac=0.2):
     return net, mu, sd, best
 
 
+def _set_requires_grad(net, lstm, attn):
+    """Freeze/unfreeze groups of a GatedHybridMomentumNetwork. The head always trains."""
+    for p in net.lstm.parameters():
+        p.requires_grad_(lstm)
+    for p in net.enc.parameters():
+        p.requires_grad_(attn)
+    net.gate.requires_grad_(attn)
+    for p in net.head.parameters():
+        p.requires_grad_(True)
+
+
+def _train_fold_two_stage(make, X, fwd, lo, hi, cfg, epochs=300, val_frac=0.2):
+    """Two-stage training for the gated hybrid: stage 1 trains lstm+head (attention frozen); stage 2
+    freezes the lstm and trains attention(enc+gate)+head. Best-val state accumulated ACROSS both
+    stages so if stage 2 only hurts, the stage-1 (LSTM) state is kept -> floor is the LSTM."""
+    torch.manual_seed(0)
+    mu, sd, Xtr, ftr, Xv, fv = _prep_tensors(X, fwd, lo, hi, val_frac)
+    net = make(X.shape[2], cfg)
+    warmup = cfg.get("warmup", 0)
+    e1 = epochs // 2
+    e2 = epochs - e1
+
+    _set_requires_grad(net, lstm=True, attn=False)
+    opt1 = torch.optim.Adam([p for p in net.parameters() if p.requires_grad],
+                            lr=BASE_LR, weight_decay=cfg["wd"])
+    sch1 = torch.optim.lr_scheduler.LambdaLR(opt1, lr_lambda=lambda e: warmup_lambda(e, warmup))
+    best, best_state = _run_epochs(net, opt1, sch1, Xtr, ftr, Xv, fv, e1)
+
+    _set_requires_grad(net, lstm=False, attn=True)
+    opt2 = torch.optim.Adam([p for p in net.parameters() if p.requires_grad],
+                            lr=BASE_LR, weight_decay=cfg["wd"])
+    sch2 = torch.optim.lr_scheduler.LambdaLR(opt2, lr_lambda=lambda e: warmup_lambda(e, warmup))
+    best, best_state = _run_epochs(net, opt2, sch2, Xtr, ftr, Xv, fv, e2, best, best_state)
+
+    if best_state is not None:
+        net.load_state_dict(best_state)
+    net.eval()
+    return net, mu, sd, best
+
+
 def _predict(net, mu, sd, X, lo, hi):
     with torch.no_grad():
         return net((torch.tensor(X[:, lo:hi], dtype=torch.float32) - mu) / sd).numpy()
 
 
-def nested_walkforward(make, grid, X, fwd, fold_bounds, warm=252, epochs=300):
+def nested_walkforward(make, grid, X, fwd, fold_bounds, warm=252, epochs=300, trainer=None):
     """For each fold, pick the cfg with best validation loss (never touching test), predict on
     the test span. Returns (POS (N,T) filled on test spans only, chosen_cfgs, test_idx)."""
+    trainer = trainer or _train_fold
     N, T, _ = X.shape
     POS = np.zeros((N, T))
     chosen, test_idx = [], []
     for train_hi, test_hi in fold_bounds:
         best, pick, picked = float("inf"), None, None
         for cfg in grid:
-            net, mu, sd, vloss = _train_fold(make, X, fwd, warm, train_hi, cfg, epochs)
+            net, mu, sd, vloss = trainer(make, X, fwd, warm, train_hi, cfg, epochs)
             if vloss < best:
                 best, pick, picked = vloss, cfg, (net, mu, sd)
         chosen.append(pick)
