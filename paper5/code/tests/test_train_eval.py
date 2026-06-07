@@ -5,6 +5,18 @@ sys.path.insert(0, os.path.join(HERE, ".."))
 import train_eval, models
 
 
+def test_warmup_lambda_ramps_then_constant():
+    vals = [train_eval.warmup_lambda(s, 10) for s in range(15)]
+    assert vals[0] < 1.0
+    assert all(b >= a for a, b in zip(vals, vals[1:]))   # non-decreasing
+    assert abs(vals[9] - 1.0) < 1e-9                     # reached 1 by step 10 (index 9)
+    assert all(abs(v - 1.0) < 1e-9 for v in vals[10:])   # constant after
+
+
+def test_warmup_lambda_zero_is_constant_one():
+    assert all(abs(train_eval.warmup_lambda(s, 0) - 1.0) < 1e-9 for s in range(5))
+
+
 def test_make_folds_are_contiguous_and_after_first_train():
     folds = train_eval.make_folds(T=300, warm=20, first_train=100, step=50)
     assert folds[0][0] == 100

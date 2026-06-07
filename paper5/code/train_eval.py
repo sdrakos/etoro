@@ -14,6 +14,15 @@ import band_eval
 
 PPY = 365                 # crypto trades 24/7
 TRAIN_COST = 1e-3         # 10 bps turnover penalty inside the training loss
+BASE_LR = 1e-3
+
+
+def warmup_lambda(step, warmup):
+    """LR multiplier: linear 0->1 over `warmup` optimizer steps, then 1.0.
+    warmup<=0 -> always 1.0 (no warmup; training path unchanged)."""
+    if warmup <= 0:
+        return 1.0
+    return min(1.0, (step + 1) / warmup)
 
 
 def make_folds(T, warm=252, first_train=1500, step=252):
@@ -44,13 +53,16 @@ def _train_fold(make, X, fwd, lo, hi, cfg, epochs=300, val_frac=0.2):
     fv = torch.tensor(fwd[:, vlo:hi], dtype=torch.float32)
 
     net = make(X.shape[2], cfg)
-    opt = torch.optim.Adam(net.parameters(), lr=1e-3, weight_decay=cfg["wd"])
+    opt = torch.optim.Adam(net.parameters(), lr=BASE_LR, weight_decay=cfg["wd"])
+    warmup = cfg.get("warmup", 0)
+    sched = torch.optim.lr_scheduler.LambdaLR(opt, lr_lambda=lambda e: warmup_lambda(e, warmup))
     best, best_state = float("inf"), None
     for e in range(epochs):
         net.train(); opt.zero_grad()
         sharpe_loss(net(Xtr), ftr, cost=TRAIN_COST).backward()
         torch.nn.utils.clip_grad_norm_(net.parameters(), 1.0)
         opt.step()
+        sched.step()
         if e % 10 == 0:
             net.eval()
             with torch.no_grad():
