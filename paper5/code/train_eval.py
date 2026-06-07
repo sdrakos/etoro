@@ -39,10 +39,8 @@ def make_folds(T, warm=252, first_train=1500, step=252):
     return folds
 
 
-def _train_fold(make, X, fwd, lo, hi, cfg, epochs=300, val_frac=0.2):
-    """Train one model on [lo,hi) with the last val_frac as validation (early stop on it).
-    Standardisation fit on train only. Returns (net, mu, sd, best_val_loss)."""
-    torch.manual_seed(0)
+def _prep_tensors(X, fwd, lo, hi, val_frac):
+    """Build the standardized train/val tensors for [lo,hi). No RNG (keeps seeding deterministic)."""
     vlo = int(lo + (1 - val_frac) * (hi - lo))
     Xt = torch.tensor(X[:, lo:hi], dtype=torch.float32)
     mu = Xt.mean((0, 1), keepdim=True)
@@ -51,12 +49,12 @@ def _train_fold(make, X, fwd, lo, hi, cfg, epochs=300, val_frac=0.2):
     ftr = torch.tensor(fwd[:, lo:vlo], dtype=torch.float32)
     Xv = (torch.tensor(X[:, vlo:hi], dtype=torch.float32) - mu) / sd
     fv = torch.tensor(fwd[:, vlo:hi], dtype=torch.float32)
+    return mu, sd, Xtr, ftr, Xv, fv
 
-    net = make(X.shape[2], cfg)
-    opt = torch.optim.Adam(net.parameters(), lr=BASE_LR, weight_decay=cfg["wd"])
-    warmup = cfg.get("warmup", 0)
-    sched = torch.optim.lr_scheduler.LambdaLR(opt, lr_lambda=lambda e: warmup_lambda(e, warmup))
-    best, best_state = float("inf"), None
+
+def _run_epochs(net, opt, sched, Xtr, ftr, Xv, fv, epochs, best=float("inf"), best_state=None):
+    """Run `epochs` full-batch steps; capture best-validation state every 10 epochs. Threads
+    (best, best_state) so a caller can accumulate the best across multiple stages."""
     for e in range(epochs):
         net.train(); opt.zero_grad()
         sharpe_loss(net(Xtr), ftr, cost=TRAIN_COST).backward()
@@ -70,6 +68,17 @@ def _train_fold(make, X, fwd, lo, hi, cfg, epochs=300, val_frac=0.2):
             if v < best:
                 best = v
                 best_state = {k: val.clone() for k, val in net.state_dict().items()}
+    return best, best_state
+
+
+def _train_fold(make, X, fwd, lo, hi, cfg, epochs=300, val_frac=0.2):
+    """Train on [lo,hi) with the last val_frac as validation (early stop). Returns (net, mu, sd, best)."""
+    torch.manual_seed(0)
+    mu, sd, Xtr, ftr, Xv, fv = _prep_tensors(X, fwd, lo, hi, val_frac)
+    net = make(X.shape[2], cfg)
+    opt = torch.optim.Adam(net.parameters(), lr=BASE_LR, weight_decay=cfg["wd"])
+    sched = torch.optim.lr_scheduler.LambdaLR(opt, lr_lambda=lambda e: warmup_lambda(e, cfg.get("warmup", 0)))
+    best, best_state = _run_epochs(net, opt, sched, Xtr, ftr, Xv, fv, epochs)
     if best_state is not None:
         net.load_state_dict(best_state)
     net.eval()
