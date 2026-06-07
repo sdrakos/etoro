@@ -51,6 +51,21 @@ Whether per-instrument news/analysis is usable as a model feature — verified a
 - **SEC EDGAR full-text** (`efts.sec.gov`, **2001+**) — official filings, not news; **8-K = official corporate news**, PiT-accurate; already used via `quantiq-pead`. US stocks only.
 - Fit summary: **GDELT** for our macro/ETF basket (themes); **FNSPID/EDGAR** for a future stock model; CC-NEWS if we want raw full text to score ourselves.
 
+### GDELT news-tone TESTED on the macro/ETF basket → robust NULL (2026-06)
+
+We ran the cheap honest test end-to-end (free, no harness). Pulled daily avg `V2Tone` per product
+from `gdelt-bq.gdeltv2.gkg_partitioned` (2015–2026, BigQuery sandbox) — first with GKG theme codes,
+then **refined to market-specific entities** via `REGEXP_CONTAINS(AllNames, …)` (e.g. `crude oil|OPEC|Brent`
+for USO, `gold price|spot gold|bullion` for GLD) to strip non-market framing. Probe = IC of the causal
+tone *surprise* (z-score vs trailing 21d) against forward 1/5/20-day returns (Yahoo prices), leak-free.
+**Result: robust null.** Refined |IC| ≤ 0.025 at 1 day, **signs flip across horizons** (USO +0.025 1d →
+−0.033 20d), sign-hit ~50%. The earlier faint TLT/USO hints (IC ~0.04 on the *impure* themes)
+**vanished once the themes were cleaned** → they were artifacts. Cleaner data, weaker "signal" — the
+tell of spurious correlation. **Do not pursue GDELT tone as a feature for this macro basket.** Files:
+`paper4/news/gdelt_sentiment.py` (BigQuery puller, dry-run + byte cap), `gdelt_tone.csv` (the panel),
+`sentiment_probe.py` (the reproducible IC probe). The *stock* route (FNSPID/EDGAR + FinBERT, deeper +
+finance-specific) remains **untested** — a separate future question, not refuted by this.
+
 ### Future (not built): live/forward news-sentiment overlay + per-source NLP scoring (stocks)
 
 Deferred, gated by the depth limit above. **Two tracks:**
