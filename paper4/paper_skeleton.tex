@@ -319,6 +319,60 @@ annualized volatility). The learned Deep Momentum Network (blue) tracks above th
 \label{fig:mlequity}
 \end{figure}
 
+\subsection{Regime-conditional behaviour: stepping aside in sideways markets}
+\label{sec:sideways}
+
+The classic failure mode of trend following is the range-bound (sideways) regime, where a
+sign-following rule whipsaws. A direct test of the belief block is therefore whether it makes the
+model \emph{reduce} exposure when no trend is present. We classify each asset-day by the Kaufman
+efficiency ratio over a $63$-day window, $\mathrm{ER}_t=|P_t-P_{t-n}|/\sum_{i}|P_i-P_{i-1}|$, which
+is near one for a clean trend and near zero for choppy price action and, crucially, is
+\emph{independent of the model's own trend signal}, so the test is not circular. On the five-product
+real eToro basket (2022--2026) we split asset-days into sideways/mixed/trending terciles and compare
+the naive position $\mathrm{sign}(\hat v_t)$ with the significance-aware position
+$\tanh(\hat v_t/\sqrt{P^{vv}_t})$ --- the monotone map of trend confidence that the network learns.
+
+\begin{table}[H]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lrrrrr}
+\toprule
+Regime (efficiency-ratio tercile) & $\overline{|\hat v/\sqrt{P^{vv}}|}$ & $\overline{|\pi|}$ naive & $\overline{|\pi|}$ model & turnover (n/m) & next-day P\&L (n/m) \\
+\midrule
+Sideways & $0.11$ & $0.17$ & $\mathbf{0.08}$ & $0.065 / \mathbf{0.034}$ & $-0.7\% / \mathbf{+1.1\%}$ \\
+Mixed    & $0.14$ & $0.19$ & $0.10$ & $0.052 / 0.035$ & $+1.6\% / +0.4\%$ \\
+Trending & $0.22$ & $0.24$ & $0.13$ & $0.043 / 0.038$ & $-1.9\% / -1.5\%$ \\
+\bottomrule
+\end{tabular}}
+\caption{Behaviour by market regime on the real-price five-product basket. Trend significance is
+monotone in trendiness, so the input encodes the regime; in the sideways tercile the
+significance-aware position halves both exposure and turnover relative to the naive rule and converts
+its small whipsaw loss into roughly flat. ``n/m'' denotes naive/model.}
+\label{tab:sideways}
+\end{table}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.92\textwidth]{figures/fig_sideways.png}
+\caption{Exposure (left) and annualized next-day P\&L (right) by regime. The significance-aware model
+(blue) carries less exposure than the naive rule (gray) everywhere, with the largest gap in the
+sideways tercile, where it also avoids the naive rule's loss.}
+\label{fig:sideways}
+\end{figure}
+
+Three points follow. First, the Kalman trend significance is monotone in trendiness
+($0.11\!\to\!0.14\!\to\!0.22$), confirming that the belief input genuinely carries regime
+information rather than merely echoing past returns. Second, in the sideways tercile the
+significance-aware position halves both exposure ($0.08$ vs $0.17$) and turnover ($0.034$ vs
+$0.065$), and turns the naive rule's whipsaw loss into approximately flat --- the model defends
+rather than attacks. We stress the honest reading: this is \emph{risk reduction}, not range alpha;
+the model does not profit from the oscillation. Third, the next-day P\&L in the \emph{trending}
+tercile is negative for both positions, because a high efficiency ratio is a backward-looking
+statement and efficient moves tend to mean-revert at the one-day horizon --- the fast-reversion motif
+of \cite{wood2021}. These are deliberately simple single-asset proxy positions (not the full
+portfolio network), so the magnitudes are indicative of behaviour, not a P\&L claim; the headline
+risk-adjusted results remain those of Table~\ref{tab:main}.
+
 \subsection{What does not help (and why parsimony wins)}
 \label{sec:ablation}
 
