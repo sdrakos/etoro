@@ -77,9 +77,11 @@ x (N,T,10)
   rate ramps linearly 0 -> `base_lr` (1e-3), then stays at `base_lr`. Implemented with a
   `torch.optim.lr_scheduler.LambdaLR` whose lambda is `min(1.0, (step+1)/warmup)` (and `1.0`
   identically when `warmup == 0`). Read `warmup = cfg.get("warmup", 0)`.
-- **Fairness / reproducibility:** LSTM cfgs carry no `warmup` key -> `warmup=0` -> constant LR ->
-  the LSTM training path is **byte-for-byte unchanged**, so its committed 0.92 reproduces. Only
-  pure-Transformer and hybrid cfgs set `warmup>0`.
+- **Fairness / reproducibility:** LSTM and pure-Transformer cfgs carry no `warmup` key -> `warmup=0`
+  -> constant LR -> their training paths are **byte-for-byte unchanged**, so the LSTM's 0.92 and the
+  pure-Transformer's ~0.07 reproduce as the reference rows. **Only hybrid cfgs set `warmup>0`** (the
+  hybrid is the one new model carrying the pre-LN + warmup fixes — the table then shows exactly what
+  the hybrid adds over the old pure-Transformer).
 - pre-LN is a **model** choice (constructor `norm_first`), not part of the loop.
 
 ## 5. Evaluation, ablation, success criterion
