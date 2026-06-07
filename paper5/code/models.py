@@ -100,6 +100,30 @@ class HybridMomentumNetwork(nn.Module):
         return torch.tanh(self.head(self.drop(h))).squeeze(-1)
 
 
+class GatedHybridMomentumNetwork(nn.Module):
+    """Like the hybrid, but attention is a SCALAR-GATED RESIDUAL: out = h + g * attention(h), where
+    g is a single learnable scalar initialized to 0. At init g=0 so the model IS an LSTM->head
+    (~the 0.92 model) with attention invisible; training raises g only if attention helps. Floor is
+    the LSTM, upside only. Leak-free: LSTM causal + block-local-causal attention."""
+    def __init__(self, n_features, hidden=16, nheads=2, dropout=0.1, window=256):
+        super().__init__()
+        self.window = window
+        self.lstm = nn.LSTM(n_features, hidden, batch_first=True)
+        self.pos = _PositionalEncoding(hidden)
+        layer = nn.TransformerEncoderLayer(hidden, nheads, dim_feedforward=4 * hidden,
+                                           dropout=dropout, batch_first=True, norm_first=True)
+        self.enc = nn.TransformerEncoder(layer, 1)
+        self.gate = nn.Parameter(torch.zeros(1))
+        self.drop = nn.Dropout(dropout)
+        self.head = nn.Linear(hidden, 1)
+
+    def forward(self, x):                # x (N,T,F) -> (N,T) in [-1,1]
+        h, _ = self.lstm(x)
+        a = _block_local_encode(self.enc, self.pos, h, self.window)
+        h = h + self.gate * a
+        return torch.tanh(self.head(self.drop(h))).squeeze(-1)
+
+
 def make_lstm(n_features, cfg):
     return DeepMomentumNetwork(n_features, hidden=cfg["hidden"], dropout=cfg["dropout"])
 
@@ -120,3 +144,15 @@ HYBRID_GRID = [
 def make_hybrid(n_features, cfg):
     return HybridMomentumNetwork(n_features, hidden=cfg["hidden"], nheads=cfg["nheads"],
                                  dropout=cfg["dropout"], window=cfg.get("window", 256))
+
+
+GATED_GRID = [
+    {"hidden": 16, "nheads": 2, "dropout": 0.1, "wd": 1e-3, "warmup": 50},
+    {"hidden": 16, "nheads": 2, "dropout": 0.3, "wd": 1e-2, "warmup": 50},
+    {"hidden": 8,  "nheads": 2, "dropout": 0.3, "wd": 1e-2, "warmup": 50},
+]
+
+
+def make_gated_hybrid(n_features, cfg):
+    return GatedHybridMomentumNetwork(n_features, hidden=cfg["hidden"], nheads=cfg["nheads"],
+                                      dropout=cfg["dropout"], window=cfg.get("window", 256))

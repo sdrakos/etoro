@@ -88,3 +88,49 @@ def test_hybrid_is_causal():
 def test_hybrid_grid_nheads_divide_hidden():
     for cfg in models.HYBRID_GRID:
         assert cfg["hidden"] % cfg["nheads"] == 0
+
+
+def test_gated_hybrid_output_shape_and_range():
+    net = models.make_gated_hybrid(10, models.GATED_GRID[0]).eval()
+    with torch.no_grad():
+        net.gate.fill_(0.5)
+    x = torch.randn(4, 30, 10)
+    with torch.no_grad():
+        out = net(x)
+    assert out.shape == (4, 30)
+    assert float(out.min()) >= -1.0 and float(out.max()) <= 1.0
+
+
+def test_gated_hybrid_gate_init_zero():
+    net = models.make_gated_hybrid(10, models.GATED_GRID[0])
+    assert float(net.gate) == 0.0
+
+
+def test_gated_hybrid_gate_zero_isolates_attention():
+    torch.manual_seed(0)
+    net = models.make_gated_hybrid(10, models.GATED_GRID[0]).eval()
+    x = torch.randn(3, 20, 10)
+    with torch.no_grad():
+        o1 = net(x)
+        for p in net.enc.parameters():
+            p.add_(1.0)
+        o2 = net(x)
+    assert torch.allclose(o1, o2, atol=1e-6)
+
+
+def test_gated_hybrid_is_causal():
+    torch.manual_seed(0)
+    net = models.make_gated_hybrid(10, models.GATED_GRID[0]).eval()
+    with torch.no_grad():
+        net.gate.fill_(1.0)
+    x = torch.randn(2, 16, 10)
+    with torch.no_grad():
+        o1 = net(x)
+        x2 = x.clone(); x2[:, -1, :] += 5.0
+        o2 = net(x2)
+    assert torch.allclose(o1[:, :-1], o2[:, :-1], atol=1e-5)
+
+
+def test_gated_grid_nheads_divide_hidden():
+    for cfg in models.GATED_GRID:
+        assert cfg["hidden"] % cfg["nheads"] == 0
