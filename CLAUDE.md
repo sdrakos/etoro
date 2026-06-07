@@ -41,9 +41,28 @@ Whether per-instrument news/analysis is usable as a model feature — verified a
 - **Finnhub (free tier, `FINNHUB_API_KEY` in `back/.env`)**: `company-news` returns **only the last ~1 year** (≈250 articles/symbol cap, regardless of the requested `from`; **ETFs ARE covered** — TLT/GLD/USO/UUP ~250 each); `stock/earnings` surprises = **last 4 quarters only**; `news-sentiment` = **403 (premium)**.
 - **Binding conclusion — depth kills news as a training feature.** The DMN trains on 2007–2024 (17y); free news reaches ~1y, so there is no honest leak-free way to backtest a news/sentiment signal over the model's history. Deep news archives (RavenPack/Bloomberg) are paid. Free news is usable only **forward/live** or for a short recent OOS slice. (Same lesson as fundamentals: the constraint is data, not method.)
 
-### Future (not built): live/forward news-sentiment overlay
+**RSS is forward-only, not an archive.** No news site's RSS (Reuters, AP, CNBC, MarketWatch, Yahoo, Nasdaq, Google News, SEC) gives historical depth — RSS exposes only the latest ~20–200 items / last days–weeks. RSS's role is to *accumulate forward* (poll daily, store), not to backfill. Choosing a different site's RSS does not solve depth.
 
-Deferred idea, gated by the depth limit above. Because deep historical news is unavailable free, a sentiment feature can only run **going forward**, outside the core leak-free backtest: pull Finnhub `company-news` (or the eToro instrument social feed) per product/day → score sentiment with our own LLM (no Finnhub premium `news-sentiment`) → feed as an **11th feature** evaluated live/paper-traded, never retro-fitted. Must still pass the parsimony/ablation gate (TA, fundamentals, extra signals all overfit before — see paper4 ablation), so the prior is that it is unlikely to beat the bar; treat as an experiment, not a core input. When picked up, build it as an `ai-trading` add-on, demo-first.
+**Free deep-historical news/sentiment sources (for later, not yet wired):**
+- **GDELT Project** ⭐ — global news monitor, 100+ languages, every 15 min. **Events** back to **1979**; **GKG** (Global Knowledge Graph, themes + entities + **built-in tone/sentiment**) back to **Feb 2015**. Free via **bulk CSV** or **BigQuery** (`gdelt-bq`). The easy **DOC 2.0 API is recent-only (~3 months)** and **rate-limits hard (429) from datacenter IPs** — confirmed: blocked from this env, run it from a user IP. Depth needs BigQuery/bulk. Entity/theme-centric (good for *gold/oil/Fed*, weak for ticker `SPY/TLT` — needs product→theme mapping). **The only free source that fits our macro/commodity basket.**
+- **Common Crawl News (CC-NEWS)** — free WARC archives of news since **2016**; raw text only (no sentiment), terabytes, no finance filter → run our own NLP.
+- **FNSPID** (2024 research dataset) — ~15M news records **aligned with prices**, **~1999–2023**, ~4–6k **US stocks**; partial LLM sentiment. Best fit *if we ever model stocks* (not ETFs/macro).
+- **Kaggle financial-news dumps** — community datasets (e.g. 2009–2020); convenient but heterogeneous, opaque provenance, **no PiT guarantee** (look-ahead/survivorship risk) — treat with suspicion for honest backtests.
+- **SEC EDGAR full-text** (`efts.sec.gov`, **2001+**) — official filings, not news; **8-K = official corporate news**, PiT-accurate; already used via `quantiq-pead`. US stocks only.
+- Fit summary: **GDELT** for our macro/ETF basket (themes); **FNSPID/EDGAR** for a future stock model; CC-NEWS if we want raw full text to score ourselves.
+
+### Future (not built): live/forward news-sentiment overlay + per-source NLP scoring (stocks)
+
+Deferred, gated by the depth limit above. **Two tracks:**
+
+**(A) Live/forward overlay (any universe).** Because deep historical news is unavailable free, a sentiment feature can only run **going forward**, outside the core leak-free backtest: pull a source per product/day → score sentiment with our own LLM (no Finnhub premium `news-sentiment`) → feed as an **11th feature** evaluated live/paper-traded, never retro-fitted. Must pass the parsimony/ablation gate (TA, fundamentals, extra signals all overfit before — see paper4 ablation), so the prior is it is unlikely to beat the bar; an experiment, not a core input. Build as an `ai-trading` add-on, demo-first.
+
+**(B) Per-source NLP → daily score → signal, for a STOCK model (the deep-archive route).** Unlike ETFs/macro, stocks have a deep free archive (FNSPID/EDGAR), so a news signal *can* be backtested leak-free. Plan, source by source (each: text → daily per-ticker sentiment score → standardize → gate/combine like any weak signal, NW-t + DSR + net-of-cost, same harness as `quantiq-pead`/paper4):
+  1. **FNSPID** — already news↔price aligned, ~1999–2023: the cleanest backtest substrate. LLM/FinBERT score per article → aggregate to a daily per-ticker sentiment; **point-in-time by article timestamp** (use only news strictly before the trade day).
+  2. **EDGAR 8-K** — event-study on official news: classify the 8-K item type + LLM tone → a PiT "disclosure sentiment" around filing date; complements PEAD/SUE.
+  3. **GDELT GKG (BigQuery)** — per-company entity tone back to 2015 as a second, independent sentiment opinion; cross-check against FNSPID.
+  4. **CC-NEWS** — only if we need full text GDELT/FNSPID lack; heaviest, do last.
+  Honest expectation: news sentiment is a **weak, decaying, crowded** signal — combine (don't bet alone), expect the edge to shrink net of costs, and report nulls. The value is orthogonality to price-based momentum, not standalone alpha.
 
 ### Planned: intraday (1h/4h) deep-momentum project (design basis)
 
