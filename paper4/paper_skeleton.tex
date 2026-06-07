@@ -1,6 +1,7 @@
 \documentclass[11pt,a4paper]{article}
 \usepackage[margin=1in]{geometry}
 \usepackage{amsmath, mathtools, amssymb, amsthm}
+\emergencystretch=2em   % safety net: never let justified lines overflow the margin
 \usepackage{graphicx}
 \usepackage{float}
 \usepackage{booktabs}
@@ -147,33 +148,124 @@ Network improves on the fixed rule.}
 \section{Belief-State Features and the Deep Momentum Network}
 \label{sec:method}
 
+\subsection{Universe and feature vector}
 \paragraph{Universe.} A fixed basket of eighteen liquid ETFs spanning asset classes: US large/
 tech/small-cap, developed and emerging international equity; long, intermediate, investment-grade
 and high-yield bonds; gold, silver, broad commodities and oil; the US dollar; real estate; and
 three equity sectors. Daily adjusted prices from Yahoo Finance, 2007--2024.
 
-\paragraph{Per-asset belief state.} For each asset we run a Kalman local-linear-trend filter on the
-log price \cite{kalman1960}, reading off the filtered trend velocity $\hat v_t$, the trend
-significance $\hat v_t/\sqrt{P^{vv}_t}$, and the standardized innovation $\nu_t/\sqrt{S_t}$; and a
-Bayesian online changepoint detector \cite{adams2007} on the returns, summarized as a break
-severity $s_t\in[0,1]$ (posterior mass on short run lengths). The feature vector per asset per day
-($F=10$) is: five volatility-normalized multi-horizon returns ($1,21,63,126,252$ days), log
-realized volatility, and the four belief signals $(\hat v_t,\ \hat v_t/\sqrt{P^{vv}_t},\
-\nu_t/\sqrt{S_t},\ s_t)$.
+\paragraph{Features.} For each asset $j$ and day $t$ we form an $F=10$ feature vector: five
+volatility-normalized cumulative returns over horizons $\{1,21,63,126,252\}$ days, the log realized
+volatility, and four \emph{belief-state} signals produced by the two filters below --- the Kalman
+trend velocity $\hat v_t$, its significance $\hat v_t/\sqrt{P^{vv}_t}$, the standardized innovation
+$\nu_t/\sqrt{S_t}$, and the changepoint severity $s_t\in[0,1]$. The first six are standard
+momentum/scale descriptors; the distinctive part of the input is the belief block, which encodes not
+just \emph{how} the price moved but the filter's \emph{confidence} in the trend and its assessment of
+\emph{regime stability}. We detail the two filters next, as they are central to the method and to the
+paper's contribution.
 
-\paragraph{Model and objective.} A single shared LSTM reads each asset's own feature sequence and
-emits a position $\pi_{j,t}=\tanh(\cdot)\in[-1,1]$; there is no cross-asset information at decision
-time. The training objective is the Sharpe ratio of the equal-capital portfolio net of turnover
-cost,
+\subsection{Local-linear-trend belief state}
+We model the log price $y_t$ of each asset as a Gaussian linear state-space system with latent level
+$\mu_t$ and velocity $v_t$, collected in $\alpha_t=(\mu_t,v_t)^\top$:
+\begin{equation}
+\alpha_t = T\alpha_{t-1}+\eta_t,\qquad y_t = Z\alpha_t+\varepsilon_t,\qquad
+T=\begin{psmallmatrix}1&1\\[1pt]0&1\end{psmallmatrix},\quad Z=(1\ \ 0),
+\end{equation}
+with $\eta_t\sim\mathcal N(0,Q)$, $Q=\mathrm{diag}(q_\mu,q_v)$, and $\varepsilon_t\sim\mathcal N(0,r)$.
+This is Harvey's local-linear-trend model \cite{harvey1989}: the level integrates the velocity and
+the velocity follows a random walk, so the filter tracks a smoothly time-varying drift. Given the
+filtered posterior $\alpha_{t-1}\mid y_{1:t-1}\sim\mathcal N(a_{t-1},P_{t-1})$, the Kalman recursion
+\cite{kalman1960} alternates a one-step prediction
+\begin{equation}
+a_{t|t-1}=Ta_{t-1},\qquad P_{t|t-1}=TP_{t-1}T^\top+Q,
+\end{equation}
+and an update driven by the innovation $\nu_t=y_t-Za_{t|t-1}$ with variance $S_t=ZP_{t|t-1}Z^\top+r$:
+\begin{equation}
+K_t=P_{t|t-1}Z^\top S_t^{-1},\qquad a_t=a_{t|t-1}+K_t\nu_t,\qquad P_t=(I-K_tZ)\,P_{t|t-1}.
+\end{equation}
+Under this Gaussian model the recursion returns the exact filtering posterior, whose mean is the
+minimum-variance --- and, being linear, the best linear unbiased --- estimator of $\alpha_t$ given
+$y_{1:t}$ \cite{kalman1960,harvey1989}. We fix the variances across assets at
+$(q_\mu,q_v,r)=(10^{-5},10^{-7},10^{-6})$ --- deliberately small process noise, yielding a slowly
+varying trend --- rather than estimating them per asset, for parsimony and to avoid per-asset
+overfitting.
+
+From the posterior we read three signals. The \textbf{velocity} $\hat v_t=(a_t)_2$ is the filtered
+drift. Its \textbf{significance} $\hat v_t/\sqrt{P^{vv}_t}$, with $P^{vv}_t=(P_t)_{22}$, is a local
+$t$-statistic: it is large only when the trend is both fast \emph{and} precisely estimated, so it
+discounts trends the filter is unsure of. The \textbf{standardized innovation} $\nu_t/\sqrt{S_t}$ is
+the one-step-ahead surprise; under correct specification it is i.i.d.\ $\mathcal N(0,1)$, so
+persistent large values flag model misfit --- precisely the regime stress the changepoint detector
+formalizes next.
+
+\subsection{Online changepoint detection}
+The Kalman significance fades smoothly; abrupt regime breaks call for a complementary detector. We
+run the Bayesian online changepoint detector of Adams and MacKay \cite{adams2007} on each asset's
+returns $x_t$. It maintains a posterior over the \emph{run length} $r_t\in\{0,1,\dots\}$, the number
+of steps since the last changepoint, under a constant hazard $H(r)=h$ (we use $h=1/250$, one expected
+break per trading year). Each run carries a conjugate Normal--Normal predictive: for a run of length
+$r$ with $n_r$ observations summing to $\Sigma_r$ and fixed observation variance $\sigma^2$, the run
+mean has posterior precision $\tau_r=\kappa_0^{-1}+n_r/\sigma^2$ and mean
+$m_r=(\mu_0\kappa_0^{-1}+\Sigma_r/\sigma^2)/\tau_r$, giving the predictive density
+$\pi^{(r)}_t=\mathcal N\!\big(x_t;\,m_r,\,\sigma^2+\tau_r^{-1}\big)$. The joint run-length recursion is
+\begin{align}
+p(r_t=r{+}1,x_{1:t}) &= p(r_{t-1}=r,x_{1:t-1})\,\pi^{(r)}_t\,(1-h) && \text{(growth)},\\
+p(r_t=0,x_{1:t}) &= \textstyle\sum_{r} p(r_{t-1}=r,x_{1:t-1})\,\pi^{(r)}_t\,h && \text{(changepoint)},
+\end{align}
+normalized to the run-length posterior $P(r_t\mid x_{1:t})$. We summarize it by the \textbf{severity}
+\begin{equation}
+s_t=\Pr(r_t<k\mid x_{1:t})=\sum_{r=0}^{k-1}P(r_t=r\mid x_{1:t}),\qquad k=5,
+\end{equation}
+the posterior mass on short run lengths. In a stable regime the mass concentrates on large $r$ and
+$s_t\approx0$; when the data cease to fit the incumbent run the mass collapses onto small $r$ and
+$s_t\to1$ --- a graded ``regime just changed'' signal that responds to a change in \emph{behaviour},
+not to a single adverse return.
+
+\paragraph{Remark (why severity, not $P(r_t{=}0)$).} A natural but mistaken detector is the
+normalized changepoint posterior $P(r_t{=}0\mid x_{1:t})$. Write
+$M_t=\sum_r p(r_{t-1}{=}r,x_{1:t-1})\,\pi^{(r)}_t$ for the shared predictive mass. From the recursion
+the unnormalized changepoint term equals $h\,M_t$ and the full normalizer equals
+$\big[h+(1-h)\big]M_t=M_t$, so
+\begin{equation}
+P(r_t{=}0\mid x_{1:t}) \;=\; \frac{h\,M_t}{M_t} \;=\; h
+\end{equation}
+identically (up to the negligible run-length truncation), independent of the data --- it carries no
+information. The collapse of mass onto short, but not necessarily zero, run lengths does, which is why
+we use $s_t$. We initially used $P(r_t{=}0)$ and observed exactly this degeneracy; replacing it with
+$s_t$ restored a usable signal.
+
+\subsection{Architecture and training objective}
+A single LSTM \cite{hochreiter1997} is shared across assets and applied to each asset's own feature
+sequence; there is no cross-asset information at decision time. With input $x_t$ and previous state
+$(h_{t-1},c_{t-1})$ the cell computes input, forget and output gates and a candidate cell,
+\begin{equation}
+(i_t,f_t,o_t)=\sigma\!\big(W_{ifo}[h_{t-1},x_t]+b_{ifo}\big),\quad
+g_t=\tanh\!\big(W_g[h_{t-1},x_t]+b_g\big),
+\end{equation}
+\begin{equation}
+c_t=f_t\odot c_{t-1}+i_t\odot g_t,\qquad h_t=o_t\odot\tanh(c_t),
+\end{equation}
+with $\sigma$ the logistic function and $\odot$ the Hadamard product; the gated cell state $c_t$ is
+the mechanism that carries trend memory across long horizons without vanishing gradients
+\cite{hochreiter1997}. A linear head with a $\tanh$ maps the hidden state to a position
+$\pi_{j,t}=\tanh\!\big(w^\top h_{j,t}+b\big)\in[-1,1]$.
+
+The network is trained by \emph{direct reinforcement} \cite{moody2001}: rather than forecasting
+returns and converting forecasts into trades, we differentiate the realized portfolio Sharpe ratio
+with respect to the weights. With next-day returns $\rho$ and cost rate $c$,
 \begin{equation}
 \mathcal{L} \;=\; -\,\frac{\bar R}{\mathrm{std}(R)}, \qquad
 R_t = \frac{1}{N}\sum_{j=1}^N \pi_{j,t}\,\rho_{j,t+1} \;-\; c\,\frac{1}{N}\sum_j |\pi_{j,t}-\pi_{j,t-1}|,
 \label{eq:sharpe}
 \end{equation}
-with next-day returns $\rho$ and cost rate $c$, in the direct-reinforcement spirit of
-\cite{moody2001}. Diversification is thus inside the loss, even though each position is decided
-from a single asset's features. Figure~\ref{fig:arch} summarizes the architecture and the ten
-per-asset features.
+which is differentiable in the positions and hence, through the LSTM, in the weights. Because $R_t$
+is the return of the \emph{whole} equal-capital portfolio, diversification enters the objective
+directly even though each position is decided from a single asset's features, and the turnover term
+$c\sum_j|\pi_{j,t}-\pi_{j,t-1}|$ discourages churn. Architecturally this is the deep momentum network
+of Lim et al.\ \cite{lim2019} with the changepoint augmentation of Wood et al.\ \cite{wood2021}; our
+contribution is the explicit Kalman/BOCPD belief block as input and the honest diversified evaluation
+that follows, not the network or the loss themselves. Figure~\ref{fig:arch} summarizes the
+architecture and the ten per-asset features.
 
 \begin{figure}[H]
 \centering
@@ -186,7 +278,8 @@ portfolio Sharpe ratio net of turnover costs; assets interact only through that 
 \label{fig:arch}
 \end{figure}
 
-\paragraph{Honest nested walk-forward.} We use two expanding out-of-sample folds (test blocks
+\subsection{Honest nested walk-forward}
+We use two expanding out-of-sample folds (test blocks
 ending 2020 and 2024). Within each fold, the last $20\%$ of the training window is a validation
 split used \emph{both} for early stopping and for selecting the configuration (hidden size,
 weight decay, dropout) from a small grid; the test block is touched exactly once, for measurement.
@@ -443,6 +536,13 @@ Portfolio Management} 40(5):94--107.
 
 \bibitem{hambly2023} Hambly, B., Xu, R., \& Yang, H.\ (2023). Recent advances in reinforcement
 learning in finance. \emph{Mathematical Finance} 33(3):437--503.
+
+\bibitem{harvey1989} Harvey, A.\ C.\ (1989). \emph{Forecasting, Structural Time Series Models and
+the Kalman Filter}. Cambridge University Press.
+
+\bibitem{hochreiter1997} Hochreiter, S., \& Schmidhuber, J.\ (1997). Long short-term memory.
+\emph{Neural Computation} 9(8):1735--1780.
+\href{https://doi.org/10.1162/neco.1997.9.8.1735}{doi:10.1162/neco.1997.9.8.1735}
 
 \bibitem{kalman1960} Kalman, R.\ E.\ (1960). A new approach to linear filtering and prediction
 problems. \emph{Journal of Basic Engineering} 82(1):35--45.
