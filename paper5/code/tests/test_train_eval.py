@@ -81,3 +81,39 @@ def test_nested_wf_accepts_two_stage_trainer():
         warm=20, epochs=4, trainer=train_eval._train_fold_two_stage)
     assert np.allclose(POS[:, :100], 0.0)
     assert idx.min() == 100
+
+
+def test_pretrain_model_returns_loadable_state():
+    rng = np.random.default_rng(0)
+    N, T, F = 4, 120, 10
+    Xs = rng.standard_normal((N, T, F)).astype("float32")
+    fs = rng.standard_normal((N, T)).astype("float32") * 0.01
+    state = train_eval.pretrain_model(models.make_gated_hybrid, models.GATED_GRID[0], Xs, fs, epochs=4)
+    m = models.make_gated_hybrid(F, models.GATED_GRID[0])
+    m.load_state_dict(state)
+
+
+def test_pretrained_trainer_resets_gate_to_zero():
+    rng = np.random.default_rng(0)
+    N, T, F = 3, 80, 10
+    Xs = rng.standard_normal((N, T, F)).astype("float32")
+    fs = rng.standard_normal((N, T)).astype("float32") * 0.01
+    state = train_eval.pretrain_model(models.make_gated_hybrid, models.GATED_GRID[0], Xs, fs, epochs=4)
+    trainer = train_eval.make_pretrained_trainer(state)
+    net, mu, sd, best = trainer(models.make_gated_hybrid, Xs, fs, 0, T, models.GATED_GRID[0], epochs=0)
+    assert float(net.gate) == 0.0
+
+
+def test_pretrained_trainer_finetunes_finite():
+    import torch
+    rng = np.random.default_rng(0)
+    N, T, F = 3, 120, 10
+    Xs = rng.standard_normal((N, T, F)).astype("float32")
+    fs = rng.standard_normal((N, T)).astype("float32") * 0.01
+    state = train_eval.pretrain_model(models.make_gated_hybrid, models.GATED_GRID[0], Xs, fs, epochs=4)
+    trainer = train_eval.make_pretrained_trainer(state)
+    net, mu, sd, best = trainer(models.make_gated_hybrid, Xs, fs, 0, T, models.GATED_GRID[0], epochs=6)
+    assert np.isfinite(best)
+    with torch.no_grad():
+        out = net((torch.tensor(Xs[:, :20], dtype=torch.float32) - mu) / sd)
+    assert out.shape == (3, 20)

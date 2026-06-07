@@ -125,6 +125,44 @@ def _train_fold_two_stage(make, X, fwd, lo, hi, cfg, epochs=300, val_frac=0.2):
     return net, mu, sd, best
 
 
+def pretrain_model(make, cfg, X_syn, fwd_syn, epochs=300):
+    """Pretrain one model on the FULL synthetic panel and return its state_dict (CPU clones). This is
+    a PRIOR (a warm-start), not a selected model -> no val split; we keep the final-epoch weights.
+    X_syn (N,T,F), fwd_syn (N,T)."""
+    torch.manual_seed(0)
+    Xt = torch.tensor(X_syn, dtype=torch.float32)
+    mu = Xt.mean((0, 1), keepdim=True)
+    sd = Xt.std((0, 1), keepdim=True) + 1e-6
+    Xtr = (Xt - mu) / sd
+    ftr = torch.tensor(fwd_syn, dtype=torch.float32)
+    net = make(X_syn.shape[2], cfg)
+    opt = torch.optim.Adam(net.parameters(), lr=BASE_LR, weight_decay=cfg["wd"])
+    sched = torch.optim.lr_scheduler.LambdaLR(opt, lr_lambda=lambda e: warmup_lambda(e, cfg.get("warmup", 0)))
+    _run_epochs(net, opt, sched, Xtr, ftr, Xtr, ftr, epochs)
+    net.eval()
+    return {k: v.detach().clone() for k, v in net.state_dict().items()}
+
+
+def make_pretrained_trainer(state):
+    """Return a trainer(make, X, fwd, lo, hi, cfg, epochs) that warm-starts from `state`, RESETS the
+    scalar gate to 0, then fine-tunes on the real [lo,hi) window exactly like _train_fold."""
+    def _trainer(make, X, fwd, lo, hi, cfg, epochs=300, val_frac=0.2):
+        torch.manual_seed(0)
+        mu, sd, Xtr, ftr, Xv, fv = _prep_tensors(X, fwd, lo, hi, val_frac)
+        net = make(X.shape[2], cfg)
+        net.load_state_dict(state)
+        with torch.no_grad():
+            net.gate.zero_()
+        opt = torch.optim.Adam(net.parameters(), lr=BASE_LR, weight_decay=cfg["wd"])
+        sched = torch.optim.lr_scheduler.LambdaLR(opt, lr_lambda=lambda e: warmup_lambda(e, cfg.get("warmup", 0)))
+        best, best_state = _run_epochs(net, opt, sched, Xtr, ftr, Xv, fv, epochs)
+        if best_state is not None:
+            net.load_state_dict(best_state)
+        net.eval()
+        return net, mu, sd, best
+    return _trainer
+
+
 def _predict(net, mu, sd, X, lo, hi):
     with torch.no_grad():
         return net((torch.tensor(X[:, lo:hi], dtype=torch.float32) - mu) / sd).numpy()
