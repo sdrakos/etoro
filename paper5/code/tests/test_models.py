@@ -63,3 +63,28 @@ def test_transformer_norm_first_constructs_and_runs():
         out = net(x)
     assert out.shape == (2, 12)
     assert net.enc.layers[0].norm_first is True
+
+
+def test_hybrid_output_shape_and_range():
+    net = models.make_hybrid(10, models.HYBRID_GRID[0]).eval()
+    x = torch.randn(4, 30, 10)
+    with torch.no_grad():
+        out = net(x)
+    assert out.shape == (4, 30)
+    assert float(out.min()) >= -1.0 and float(out.max()) <= 1.0
+
+
+def test_hybrid_is_causal():
+    torch.manual_seed(0)
+    net = models.make_hybrid(10, models.HYBRID_GRID[0]).eval()
+    x = torch.randn(2, 16, 10)
+    with torch.no_grad():
+        o1 = net(x)
+        x2 = x.clone(); x2[:, -1, :] += 5.0
+        o2 = net(x2)
+    assert torch.allclose(o1[:, :-1], o2[:, :-1], atol=1e-5)
+
+
+def test_hybrid_grid_nheads_divide_hidden():
+    for cfg in models.HYBRID_GRID:
+        assert cfg["hidden"] % cfg["nheads"] == 0

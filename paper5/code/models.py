@@ -78,6 +78,28 @@ class MomentumTransformer(nn.Module):
         return torch.tanh(self.head(self.drop(h))).squeeze(-1)
 
 
+class HybridMomentumNetwork(nn.Module):
+    """The real Momentum Transformer (Wood 2022): an LSTM encoder whose hidden-state sequence is then
+    refined by pre-LN block-local causal attention. The LSTM carries long memory and gives the model
+    its sample efficiency; the attention adds 'look back at the relevant regime'. Same I/O as the
+    other models. Leak-free: LSTM is causal and the attention is block-local causal."""
+    def __init__(self, n_features, hidden=16, nheads=2, dropout=0.1, nlayers=1, window=256):
+        super().__init__()
+        self.window = window
+        self.lstm = nn.LSTM(n_features, hidden, batch_first=True)
+        self.pos = _PositionalEncoding(hidden)
+        layer = nn.TransformerEncoderLayer(hidden, nheads, dim_feedforward=4 * hidden,
+                                           dropout=dropout, batch_first=True, norm_first=True)
+        self.enc = nn.TransformerEncoder(layer, nlayers)
+        self.drop = nn.Dropout(dropout)
+        self.head = nn.Linear(hidden, 1)
+
+    def forward(self, x):                # x (N,T,F) -> (N,T) in [-1,1]
+        h, _ = self.lstm(x)
+        h = _block_local_encode(self.enc, self.pos, h, self.window)
+        return torch.tanh(self.head(self.drop(h))).squeeze(-1)
+
+
 def make_lstm(n_features, cfg):
     return DeepMomentumNetwork(n_features, hidden=cfg["hidden"], dropout=cfg["dropout"])
 
@@ -86,3 +108,15 @@ def make_transformer(n_features, cfg):
     return MomentumTransformer(n_features, d_model=cfg["d_model"], nheads=cfg["nheads"],
                                dropout=cfg["dropout"], window=cfg.get("window", 256),
                                norm_first=cfg.get("norm_first", False))
+
+
+HYBRID_GRID = [
+    {"hidden": 16, "nheads": 2, "dropout": 0.1, "wd": 1e-3, "warmup": 50},
+    {"hidden": 16, "nheads": 2, "dropout": 0.3, "wd": 1e-2, "warmup": 50},
+    {"hidden": 8,  "nheads": 2, "dropout": 0.3, "wd": 1e-2, "warmup": 50},
+]
+
+
+def make_hybrid(n_features, cfg):
+    return HybridMomentumNetwork(n_features, hidden=cfg["hidden"], nheads=cfg["nheads"],
+                                 dropout=cfg["dropout"], window=cfg.get("window", 256))
