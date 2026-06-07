@@ -24,6 +24,18 @@ The discipline that separates a real edge from a backtest mirage. Mirror the exi
 - **Max drawdown, turnover** — the cost and pain side.
 - **Ablations** — drop each feature/component and show the delta. If removing it doesn't hurt, it was overfitting (parsimony wins).
 
+## Basket diversification gate (measure "diversity > count" before trading)
+
+Before committing a product set, **check its daily-return correlation matrix** — it's the
+quantitative form of "diversity > count". Two products at ρ≈0.9 are **one** bet, not two: they add
+turnover/cost without a real bet. `paper4/engine/correlation_check.py` (reuses the live eToro fetch)
+reports the heatmap, the average |pairwise ρ|, and the **effective number of independent bets**
+`ENB = (Σλ)² / Σλ²` over the correlation eigenvalues (= N if all uncorrelated, → 1 if all identical).
+Real eToro result that *is* the mechanism behind 5 > 17: the 5-diversified basket (SPY/TLT/GLD/USO/UUP)
+has avg |ρ| 0.19 and **ENB 4.2/5 (84%)**, while the 17-ETF set has avg |ρ| 0.38 and only
+**ENB 3.9/17 (23%)** — 17 names collapse to *fewer* real bets than 5. Prune redundant high-ρ clusters
+instead of padding the count.
+
 ## Feature set (the belief-state inputs, per asset)
 
 Ten vol-normalized signals — never the raw price (`paper4/code/features.py`):
