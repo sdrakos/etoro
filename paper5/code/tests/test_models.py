@@ -28,3 +28,18 @@ def test_transformer_is_causal():
         x2 = x.clone(); x2[:, -1, :] += 5.0
         o2 = net(x2)
     assert torch.allclose(o1[:, :-1], o2[:, :-1], atol=1e-5)
+
+
+def test_transformer_block_local_attention():
+    # With window=4, the time axis splits into blocks [0-3],[4-7],[8-9]. Perturbing position 0
+    # (block 0) must not change position 9 (block 2) -> compute is genuinely block-local, O(T*W).
+    torch.manual_seed(0)
+    N, T, F = 2, 10, 10
+    net = models.MomentumTransformer(F, d_model=8, nheads=2, dropout=0.0, window=4).eval()
+    x = torch.randn(N, T, F)
+    with torch.no_grad():
+        o1 = net(x)
+        x2 = x.clone(); x2[:, 0, :] += 5.0
+        o2 = net(x2)
+    assert torch.allclose(o1[:, 8:], o2[:, 8:], atol=1e-5)   # far block unaffected
+    assert not torch.allclose(o1[:, 0], o2[:, 0], atol=1e-5)  # same block IS affected

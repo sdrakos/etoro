@@ -40,8 +40,14 @@ class _PositionalEncoding(nn.Module):
 
 
 class MomentumTransformer(nn.Module):
-    def __init__(self, n_features, d_model=16, nheads=2, dropout=0.1, nlayers=1):
+    """Block-local causal Transformer. The time axis is split into non-overlapping blocks of
+    `window` steps; causal attention runs WITHIN each block only. This makes compute O(T*window)
+    instead of O(T^2) — full attention over a ~4000-day history is both too slow on CPU and
+    needless (the input features already encode horizons up to 252d). Leak-free: a position never
+    attends to the future (causal mask), and blocks earlier in time are never seen ahead of time."""
+    def __init__(self, n_features, d_model=16, nheads=2, dropout=0.1, nlayers=1, window=256):
         super().__init__()
+        self.window = window
         self.proj = nn.Linear(n_features, d_model)
         self.pos = _PositionalEncoding(d_model)
         layer = nn.TransformerEncoderLayer(d_model, nheads, dim_feedforward=4 * d_model,
@@ -51,10 +57,18 @@ class MomentumTransformer(nn.Module):
         self.head = nn.Linear(d_model, 1)
 
     def forward(self, x):                # x (N,T,F) -> (N,T) in [-1,1]
-        T = x.size(1)
-        mask = torch.triu(torch.full((T, T), float("-inf"), device=x.device), diagonal=1)
-        h = self.pos(self.proj(x))
-        h = self.enc(h, mask=mask)
+        N, T, _ = x.shape
+        W = self.window
+        h = self.proj(x)                                  # (N,T,d)
+        pad = (W - T % W) % W                             # right-pad time to a multiple of W
+        if pad:
+            h = torch.cat([h, h.new_zeros(N, pad, h.size(-1))], dim=1)
+        nb = (T + pad) // W
+        h = h.reshape(N * nb, W, -1)                      # contiguous time blocks, block-local
+        h = self.pos(h)                                   # positional encoding within the block
+        mask = torch.triu(torch.full((W, W), float("-inf"), device=x.device), diagonal=1)
+        h = self.enc(h, mask=mask)                        # causal within block, O(W^2) per block
+        h = h.reshape(N, T + pad, -1)[:, :T]              # drop the padding
         return torch.tanh(self.head(self.drop(h))).squeeze(-1)
 
 
@@ -64,4 +78,4 @@ def make_lstm(n_features, cfg):
 
 def make_transformer(n_features, cfg):
     return MomentumTransformer(n_features, d_model=cfg["d_model"], nheads=cfg["nheads"],
-                               dropout=cfg["dropout"])
+                               dropout=cfg["dropout"], window=cfg.get("window", 256))
