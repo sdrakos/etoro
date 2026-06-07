@@ -33,6 +33,18 @@ Honest, fragile results — **signals are universe/period-dependent** (the paper
 - **Binding constraint is data, not method**: need depth + small-cap breadth + survivorship-free membership (Sharadar/CRSP). None free; see `paper1_RL/DATA_SOURCES.md`.
 - Written up in **`paper3/paper_skeleton.tex`** (9 pp, TikZ pipeline + drift/cross-config/fundamentals/PnL figures; honest null). Figures live in `paper3/figures/` (gitignore has a `!paper3/figures/*.png` exception over the global `*.png` ignore — keep it).
 
+### News / sentiment data availability (2026-06, checked live)
+
+Whether per-instrument news/analysis is usable as a model feature — verified against the actual APIs, not assumed:
+- **eToro**: NO news/analyst/sentiment endpoints. Only a **social feed** (`GET /api/v1/feeds/instrument/{marketId}` — user discussion posts, raw text, no sentiment score) and user-discovery analytics (about people, not markets). `market-data` is price/metadata only.
+- **SEC EDGAR (`quantiq-pead`)**: fundamentals/earnings (PiT SUE/PEAD), **back to ~2009–2011** (XBRL). NO news — the skill explicitly forbids narrative "analysis".
+- **Finnhub (free tier, `FINNHUB_API_KEY` in `back/.env`)**: `company-news` returns **only the last ~1 year** (≈250 articles/symbol cap, regardless of the requested `from`; **ETFs ARE covered** — TLT/GLD/USO/UUP ~250 each); `stock/earnings` surprises = **last 4 quarters only**; `news-sentiment` = **403 (premium)**.
+- **Binding conclusion — depth kills news as a training feature.** The DMN trains on 2007–2024 (17y); free news reaches ~1y, so there is no honest leak-free way to backtest a news/sentiment signal over the model's history. Deep news archives (RavenPack/Bloomberg) are paid. Free news is usable only **forward/live** or for a short recent OOS slice. (Same lesson as fundamentals: the constraint is data, not method.)
+
+### Future (not built): live/forward news-sentiment overlay
+
+Deferred idea, gated by the depth limit above. Because deep historical news is unavailable free, a sentiment feature can only run **going forward**, outside the core leak-free backtest: pull Finnhub `company-news` (or the eToro instrument social feed) per product/day → score sentiment with our own LLM (no Finnhub premium `news-sentiment`) → feed as an **11th feature** evaluated live/paper-traded, never retro-fitted. Must still pass the parsimony/ablation gate (TA, fundamentals, extra signals all overfit before — see paper4 ablation), so the prior is that it is unlikely to beat the bar; treat as an experiment, not a core input. When picked up, build it as an `ai-trading` add-on, demo-first.
+
 ### Planned: intraday (1h/4h) deep-momentum project (design basis)
 
 **Chosen architecture basis** (for the new intraday algorithm analogous to paper4):
