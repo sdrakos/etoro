@@ -39,6 +39,23 @@ class _PositionalEncoding(nn.Module):
         return x + self.pe[: x.size(1)].unsqueeze(0)
 
 
+def _block_local_encode(enc, pos, h, window):
+    """Block-local causal Transformer encode of an already-embedded sequence h (N,T,d).
+    Splits time into non-overlapping blocks of `window`, runs causal attention WITHIN each block
+    (O(T*window), leak-free), and returns (N,T,d). Shared by MomentumTransformer and the hybrid."""
+    N, T, d = h.shape
+    W = window
+    pad = (W - T % W) % W
+    if pad:
+        h = torch.cat([h, h.new_zeros(N, pad, d)], dim=1)
+    nb = (T + pad) // W
+    h = h.reshape(N * nb, W, d)
+    h = pos(h)
+    mask = torch.triu(torch.full((W, W), float("-inf"), device=h.device), diagonal=1)
+    h = enc(h, mask=mask)
+    return h.reshape(N, T + pad, d)[:, :T]
+
+
 class MomentumTransformer(nn.Module):
     """Block-local causal Transformer. The time axis is split into non-overlapping blocks of
     `window` steps; causal attention runs WITHIN each block only. This makes compute O(T*window)
@@ -57,18 +74,7 @@ class MomentumTransformer(nn.Module):
         self.head = nn.Linear(d_model, 1)
 
     def forward(self, x):                # x (N,T,F) -> (N,T) in [-1,1]
-        N, T, _ = x.shape
-        W = self.window
-        h = self.proj(x)                                  # (N,T,d)
-        pad = (W - T % W) % W                             # right-pad time to a multiple of W
-        if pad:
-            h = torch.cat([h, h.new_zeros(N, pad, h.size(-1))], dim=1)
-        nb = (T + pad) // W
-        h = h.reshape(N * nb, W, -1)                      # contiguous time blocks, block-local
-        h = self.pos(h)                                   # positional encoding within the block
-        mask = torch.triu(torch.full((W, W), float("-inf"), device=x.device), diagonal=1)
-        h = self.enc(h, mask=mask)                        # causal within block, O(W^2) per block
-        h = h.reshape(N, T + pad, -1)[:, :T]              # drop the padding
+        h = _block_local_encode(self.enc, self.pos, self.proj(x), self.window)
         return torch.tanh(self.head(self.drop(h))).squeeze(-1)
 
 

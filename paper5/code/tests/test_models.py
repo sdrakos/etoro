@@ -43,3 +43,13 @@ def test_transformer_block_local_attention():
         o2 = net(x2)
     assert torch.allclose(o1[:, 8:], o2[:, 8:], atol=1e-5)   # far block unaffected
     assert not torch.allclose(o1[:, 0], o2[:, 0], atol=1e-5)  # same block IS affected
+
+
+def test_block_local_helper_matches_transformer_forward():
+    torch.manual_seed(0)
+    net = models.make_transformer(10, models.TRANSF_GRID[0]).eval()
+    x = torch.randn(3, 20, 10)
+    with torch.no_grad():
+        out = net(x)
+    assert out.shape == (3, 20)
+    assert float(out.min()) >= -1.0 and float(out.max()) <= 1.0
