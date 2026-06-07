@@ -87,9 +87,10 @@ def nested_walkforward(make, grid, X, fwd, fold_bounds, warm=252, epochs=300):
     return POS, chosen, np.array(test_idx)
 
 
-def evaluate(POS, fwd, dates_ms, test_idx, band, spread_bps=10.0, n_trials=1, short_fin=0.0):
+def evaluate(POS, fwd, dates_ms, test_idx, band, spread_bps=10.0, n_trials=1, short_fin=0.0, ppy=PPY):
     """Apply the band to the full (T,N) path, slice to test rows, charge costs, return metrics.
-    POS, fwd are (N,T); net_returns wants (T,N) so we transpose."""
+    POS, fwd are (N,T); net_returns wants (T,N) so we transpose. `ppy` = periods/year for
+    annualisation (365 for 24/7 crypto, 252 for a weekday calendar)."""
     W_full = band_eval.apply_band(POS.T, band) / POS.shape[0]   # (T,N), equal capital
     F_full = np.asarray(fwd).T                                  # (T,N)
     rows = np.asarray(test_idx)
@@ -98,9 +99,9 @@ def evaluate(POS, fwd, dates_ms, test_idx, band, spread_bps=10.0, n_trials=1, sh
     net = net[fin]
     d = np.asarray(dates_ms)[rows][fin]
     return {
-        "net_ir": metrics.ann_ir(net, PPY),
+        "net_ir": metrics.ann_ir(net, ppy),
         "nw_t": metrics.newey_west_t(net),
-        "dsr": metrics.deflated_sharpe(net, n_trials=n_trials, periods=PPY),
-        "durability": metrics.durability_by_year(net, d, PPY),
+        "dsr": metrics.deflated_sharpe(net, n_trials=n_trials, periods=ppy),
+        "durability": metrics.durability_by_year(net, d, ppy),
         "n": len(net),
     }
