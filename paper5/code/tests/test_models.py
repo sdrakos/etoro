@@ -53,3 +53,13 @@ def test_block_local_helper_matches_transformer_forward():
         out = net(x)
     assert out.shape == (3, 20)
     assert float(out.min()) >= -1.0 and float(out.max()) <= 1.0
+
+
+def test_transformer_norm_first_constructs_and_runs():
+    torch.manual_seed(0)
+    net = models.MomentumTransformer(10, d_model=16, nheads=2, dropout=0.0, norm_first=True).eval()
+    x = torch.randn(2, 12, 10)
+    with torch.no_grad():
+        out = net(x)
+    assert out.shape == (2, 12)
+    assert net.enc.layers[0].norm_first is True

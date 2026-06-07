@@ -62,13 +62,13 @@ class MomentumTransformer(nn.Module):
     instead of O(T^2) — full attention over a ~4000-day history is both too slow on CPU and
     needless (the input features already encode horizons up to 252d). Leak-free: a position never
     attends to the future (causal mask), and blocks earlier in time are never seen ahead of time."""
-    def __init__(self, n_features, d_model=16, nheads=2, dropout=0.1, nlayers=1, window=256):
+    def __init__(self, n_features, d_model=16, nheads=2, dropout=0.1, nlayers=1, window=256, norm_first=False):
         super().__init__()
         self.window = window
         self.proj = nn.Linear(n_features, d_model)
         self.pos = _PositionalEncoding(d_model)
         layer = nn.TransformerEncoderLayer(d_model, nheads, dim_feedforward=4 * d_model,
-                                           dropout=dropout, batch_first=True)
+                                           dropout=dropout, batch_first=True, norm_first=norm_first)
         self.enc = nn.TransformerEncoder(layer, nlayers)
         self.drop = nn.Dropout(dropout)
         self.head = nn.Linear(d_model, 1)
@@ -84,4 +84,5 @@ def make_lstm(n_features, cfg):
 
 def make_transformer(n_features, cfg):
     return MomentumTransformer(n_features, d_model=cfg["d_model"], nheads=cfg["nheads"],
-                               dropout=cfg["dropout"], window=cfg.get("window", 256))
+                               dropout=cfg["dropout"], window=cfg.get("window", 256),
+                               norm_first=cfg.get("norm_first", False))
