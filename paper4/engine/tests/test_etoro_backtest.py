@@ -56,3 +56,13 @@ def test_backtest_rolling_and_ewma_run_and_target_vol():
     # the causal methods land near (not exactly on) the 10% target — they are estimates
     _s, a_roll, _e = backtest_rules(close, target_vol=0.10, vol_method="rolling")
     assert 0.04 < a_roll.std() * np.sqrt(252) < 0.20
+
+
+def test_rebal_default_unchanged_and_faster_means_more_turnover():
+    close = _trending_closes(T=900, N=5, seed=11)
+    base, _a, _e = backtest_rules(close, vol_method="rolling")            # default rebal=21
+    explicit, _a2, _e2 = backtest_rules(close, vol_method="rolling", rebal=21)
+    assert base["final"] == explicit["final"]                            # default is exactly 21 (model untouched)
+    fast, _, _ = backtest_rules(close, vol_method="rolling", rebal=5)
+    slow, _, _ = backtest_rules(close, vol_method="rolling", rebal=63)
+    assert fast["ann_turnover"] > base["ann_turnover"] > slow["ann_turnover"]   # faster -> more churn

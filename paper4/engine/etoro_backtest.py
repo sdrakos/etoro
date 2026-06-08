@@ -74,17 +74,20 @@ def _trailing_vol(net, method, window=63, ewma_window=126):
     return vol
 
 
-def backtest_rules(close, capital=10000.0, target_vol=0.10, long_only=False, vol_method="static"):
+def backtest_rules(close, capital=10000.0, target_vol=0.10, long_only=False, vol_method="static",
+                   rebal=21):
     """Rules time-series momentum on a (T,N) close matrix, net of 5bps. Returns dict + equity.
     target_vol is the risk dial (the return stream is scaled to this annual volatility);
     long_only=True keeps only the up-trends (drops the short legs).
+    rebal = trading days between signal recomputes (default 21 = monthly; lower = more frequent).
+            This only changes HOW OFTEN we act — the signal logic (the model) is untouched.
     vol_method controls HOW the scaling vol is measured:
       'static'  -> whole-period std (illustration; mild look-ahead, Sharpe-invariant);
       'rolling' -> causal trailing 63-day std (matches the live engine, no look-ahead);
       'ewma'    -> causal recency-weighted vol (reacts faster to a volatility spike)."""
     close = _ffill(close)
     T, N = close.shape
-    W = build_ts_weights(close)
+    W = build_ts_weights(close, rebal=rebal)
     if long_only:
         W = np.clip(W, 0.0, None)
     fwd = np.zeros((T, N)); fwd[:-1] = close[1:] / close[:-1] - 1.0
@@ -98,8 +101,48 @@ def backtest_rules(close, capital=10000.0, target_vol=0.10, long_only=False, vol
         lev = np.clip(target_vol / (vol + 1e-9), 0.2, 3.0)
         a = (net * lev)[warm:T - 1]
     eq = capital * np.cumprod(1 + a)
+    dW = np.nan_to_num(np.abs(np.diff(np.nan_to_num(W[warm:T - 1]), axis=0)))
+    ann_turnover = float(dW.sum(axis=1).mean() * 252)
     return {"ir": ann_ir(a), "sharpe": float(a.mean() / a.std() * np.sqrt(252)),
-            "maxdd": max_drawdown(a), "final": float(eq[-1]), "n_days": len(a)}, a, eq
+            "maxdd": max_drawdown(a), "final": float(eq[-1]), "n_days": len(a),
+            "ann_turnover": ann_turnover}, a, eq
+
+
+def compare_rebal(tickers=None, capital=10000.0, target_vol=0.10, long_only=False,
+                  vol_method="rolling", rebals=(5, 10, 21, 63)):
+    """Run the SAME model at different rebalance cadences on real eToro prices and overlay them.
+    Shows the honest trade-off: faster rebal -> more turnover/cost, usually NOT more return."""
+    import json
+    import matplotlib; matplotlib.use("Agg"); import matplotlib.pyplot as plt
+    tickers = tickers or DEFAULT
+    close, dates, kept, id2tk = _fetch_etoro_closes(tickers)
+    label = {5: "weekly~5d", 10: "biweekly~10d", 21: "monthly~21d", 63: "quarterly~63d"}
+    results, curves = {}, {}
+    print(f"\n=== rebalance-cadence comparison — {len(kept)} products, "
+          f"{'long-only' if long_only else 'long/short'}, {target_vol*100:.0f}% vol ===")
+    print(f"  {'rebal':<14}{'IR':>7}{'maxDD':>8}{'turnover/yr':>13}{'final EUR':>12}")
+    for r in rebals:
+        stats, _ret, eq = backtest_rules(close, capital=capital, target_vol=target_vol,
+                                         long_only=long_only, vol_method=vol_method, rebal=r)
+        results[r] = stats; curves[r] = eq
+        print(f"  {label.get(r, str(r)+'d'):<14}{stats['ir']:>+7.2f}{stats['maxdd']*100:>7.0f}%"
+              f"{stats['ann_turnover']:>12.1f}x{stats['final']:>12,.0f}")
+    FIG = os.path.abspath(os.path.join(HERE, "..", "figures"))
+    plt.rcParams.update({"font.family": "serif", "figure.dpi": 150, "savefig.bbox": "tight"})
+    n = min(len(c) for c in curves.values())
+    d = [np.datetime64(x) for x in dates[252:252 + n]]
+    fig, ax = plt.subplots(figsize=(10, 6))
+    for r in rebals:
+        ax.plot(d, curves[r][:n], lw=1.8,
+                label=f"{label.get(r, str(r)+'d')}: EUR {results[r]['final']:,.0f} "
+                      f"(IR {results[r]['ir']:+.2f}, turn {results[r]['ann_turnover']:.1f}x)")
+    ax.set_title(f"Rebalance cadence on real eToro prices (same model) — {len(kept)} products")
+    ax.set_ylabel("Account value (EUR)"); ax.grid(alpha=.3); ax.legend(fontsize=8)
+    fig.tight_layout(); fig.savefig(os.path.join(FIG, "fig_rebal_cadence.png")); plt.close(fig)
+    with open(os.path.join(HERE, "..", "results_rebal_cadence.json"), "w", encoding="utf-8") as f:
+        json.dump({"products": [id2tk[i] for i in kept], "results": results}, f, indent=2)
+    print("\n  saved figures/fig_rebal_cadence.png + results_rebal_cadence.json")
+    return results
 
 
 def _fetch_etoro_closes(tickers):
@@ -171,13 +214,14 @@ def compare_vol_methods(tickers=None, capital=10000.0, target_vol=0.10, long_onl
     return results
 
 
-def run(tickers=None, capital=10000.0, target_vol=0.10, long_only=False, vol_method="static"):
+def run(tickers=None, capital=10000.0, target_vol=0.10, long_only=False, vol_method="static",
+        rebal=21):
     import json
     import matplotlib; matplotlib.use("Agg"); import matplotlib.pyplot as plt
     tickers = tickers or DEFAULT
     close, dates, kept, id2tk = _fetch_etoro_closes(tickers)
     stats, _ret, eq = backtest_rules(close, capital=capital, target_vol=target_vol,
-                                     long_only=long_only, vol_method=vol_method)
+                                     long_only=long_only, vol_method=vol_method, rebal=rebal)
     mode = "long-only" if long_only else "long/short"
     print(f"\n=== eToro-prices backtest (rules, {mode}, net, {target_vol*100:.0f}% vol target) ===")
     print(f"  period   {dates[252]}..{dates[-2]}")
@@ -212,9 +256,15 @@ if __name__ == "__main__":
                     help="how the scaling vol is measured (rolling/ewma are causal, live-correct)")
     ap.add_argument("--compare-vol", action="store_true",
                     help="overlay static vs rolling vs ewma on the same prices (one figure)")
+    ap.add_argument("--rebal", type=int, default=21,
+                    help="trading days between signal recomputes (21=monthly default; lower=faster)")
+    ap.add_argument("--compare-rebal", action="store_true",
+                    help="overlay weekly/biweekly/monthly/quarterly cadences (same model, one figure)")
     a = ap.parse_args()
-    if a.compare_vol:
+    if a.compare_rebal:
+        compare_rebal(a.tickers or None, capital=a.capital, target_vol=a.vol, long_only=a.long_only)
+    elif a.compare_vol:
         compare_vol_methods(a.tickers or None, capital=a.capital, target_vol=a.vol, long_only=a.long_only)
     else:
         run(a.tickers or None, capital=a.capital, target_vol=a.vol,
-            long_only=a.long_only, vol_method=a.vol_method)
+            long_only=a.long_only, vol_method=a.vol_method, rebal=a.rebal)
