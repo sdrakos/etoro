@@ -117,3 +117,57 @@ def test_pretrained_trainer_finetunes_finite():
     with torch.no_grad():
         out = net((torch.tensor(Xs[:, :20], dtype=torch.float32) - mu) / sd)
     assert out.shape == (3, 20)
+
+
+def _first_random_param(net):
+    # the gate is zero-init (seed-independent); grab the first seed-randomized weight
+    for p in net.parameters():
+        if p.numel() > 1:
+            return p.detach().clone()
+    return next(net.parameters()).detach().clone()
+
+
+def test_set_seed_changes_init():
+    import torch
+    train_eval.set_seed(1)
+    torch.manual_seed(train_eval._SEED)
+    a = _first_random_param(models.make_gated_hybrid(10, models.GATED_GRID[0]))
+    train_eval.set_seed(2)
+    torch.manual_seed(train_eval._SEED)
+    b = _first_random_param(models.make_gated_hybrid(10, models.GATED_GRID[0]))
+    train_eval.set_seed(0)
+    assert not torch.allclose(a, b)
+
+
+def test_set_seed_zero_default_path_runs():
+    train_eval.set_seed(0)
+    rng = np.random.default_rng(0)
+    N, T, F = 3, 120, 10
+    X = rng.standard_normal((N, T, F)).astype("float32")
+    fwd = rng.standard_normal((N, T)).astype("float32") * 0.01
+    net, mu, sd, best = train_eval._train_fold(models.make_lstm, X, fwd, 0, T, models.LSTM_GRID[0], epochs=4)
+    assert np.isfinite(best)
+
+
+def test_gate_log_records_one_float_for_gated_pretrain():
+    train_eval.GATE_LOG.clear()
+    rng = np.random.default_rng(0)
+    N, T, F = 3, 80, 10
+    Xs = rng.standard_normal((N, T, F)).astype("float32")
+    fs = rng.standard_normal((N, T)).astype("float32") * 0.01
+    state = train_eval.pretrain_model(models.make_gated_hybrid, models.GATED_GRID[0], Xs, fs, epochs=4)
+    trainer = train_eval.make_pretrained_trainer(state)
+    trainer(models.make_gated_hybrid, Xs, fs, 0, T, models.GATED_GRID[0], epochs=4)
+    assert len(train_eval.GATE_LOG) == 1
+    assert train_eval.GATE_LOG[0] >= 0.0
+
+
+def test_lstm_pretrain_no_gate_reset_error():
+    rng = np.random.default_rng(0)
+    N, T, F = 3, 80, 10
+    Xs = rng.standard_normal((N, T, F)).astype("float32")
+    fs = rng.standard_normal((N, T)).astype("float32") * 0.01
+    state = train_eval.pretrain_model(models.make_lstm, models.LSTM_GRID[0], Xs, fs, epochs=4)
+    trainer = train_eval.make_pretrained_trainer(state)
+    net, mu, sd, best = trainer(models.make_lstm, Xs, fs, 0, T, models.LSTM_GRID[0], epochs=4)
+    assert np.isfinite(best)
