@@ -373,6 +373,14 @@ of \cite{wood2021}. These are deliberately simple single-asset proxy positions (
 portfolio network), so the magnitudes are indicative of behaviour, not a P\&L claim; the headline
 risk-adjusted results remain those of Table~\ref{tab:main}.
 
+\paragraph{Robustness to rebalance frequency.} Rebalancing cadence is a free parameter, not part of
+the signal; we vary it on the five-product real-price basket (long-only, $10\%$ vol target) holding
+the model fixed. Monthly ($21$ trading days, our default) is the sweet spot: IR $1.88$ at $5.2\times$
+annual turnover, versus weekly ($1.77$ at $13.2\times$), biweekly ($1.53$), and quarterly ($1.22$ at
+$3.1\times$, too slow to track regime turns). Faster rebalancing does not raise net performance --- it
+only multiplies turnover and cost, the same low-turnover lesson as the rejected stop-loss. The default
+is therefore not a tuned choice but a robust plateau.
+
 \subsection{What does not help (and why parsimony wins)}
 \label{sec:ablation}
 
