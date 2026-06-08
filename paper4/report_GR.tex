@@ -10,6 +10,7 @@
 \usepackage{amsmath,amssymb}
 \usepackage{geometry}\geometry{margin=2.4cm}
 \usepackage{xcolor}\usepackage{graphicx}
+\usepackage{float}   % enables [H] = place the figure exactly here (no drifting away)
 \usepackage{booktabs}
 \usepackage{caption}\captionsetup{font=small,labelfont=bf}
 \usepackage[hidelinks]{hyperref}
@@ -372,7 +373,7 @@ EWMA & αντιδρά πιο γρήγορα & $+1.46$ & $-9\%$ & 15.753\eur{} \\
 καλύτερη ποιότητα κέρδους με μέτριο αριθμό συναλλαγών.}
 \end{table}
 
-\begin{figure}[ht]\centering\includegraphics[width=.86\linewidth]{fig_rebal_cadence.png}
+\begin{figure}[H]\centering\includegraphics[width=.86\linewidth]{fig_rebal_cadence.png}
 \caption{Η εξέλιξη του λογαριασμού στις τέσσερις συχνότητες. Η μηνιαία και η εβδομαδιαία είναι κοντά,
 αλλά η εβδομαδιαία κάνει \emph{υπερδιπλάσιες} συναλλαγές για ελαφρώς λιγότερο κέρδος.}\end{figure}
 
