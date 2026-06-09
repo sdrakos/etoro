@@ -37,14 +37,15 @@ def _metrics(POS, fwd, idx, band, n_trials):
             "dsr": metrics.deflated_sharpe(net, n_trials, PPY)}
 
 
-def main():
-    df = combined_data.fetch_combined_daily()[FIVE].dropna(how="any")
+def main(basket="five"):
+    full = combined_data.fetch_combined_daily()   # already aligned (ffill + dropna how=all), ~2947 bars
+    df = full if basket == "all" else full[FIVE].dropna(how="any")
     X, fwd, dates_ms = crypto_features.build(df)
     T = X.shape[1]
     vol = (df.pct_change().rolling(30).std() * np.sqrt(PPY)).shift(1).to_numpy().T
     vol = np.nan_to_num(vol, nan=1.0)
     folds = train_eval.make_folds(T, warm=252, first_train=1500, step=252)
-    print(f"[data] {len(FIVE)} assets {FIVE}, {T} bars {df.index[0].date()}..{df.index[-1].date()}, folds={len(folds)}")
+    print(f"[data] {df.shape[1]} assets, {T} bars {df.index[0].date()}..{df.index[-1].date()}, folds={len(folds)}")
 
     POS_l, _, idx = train_eval.nested_walkforward(models.make_lstm, models.LSTM_GRID, X, fwd, folds,
                                                   warm=252, epochs=300)
@@ -72,4 +73,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main(sys.argv[1] if len(sys.argv) > 1 else "five")
