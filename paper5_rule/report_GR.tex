@@ -1,0 +1,94 @@
+% QUANTIQ business report template (non-technical, serious, Greek).
+% Compile with XeLaTeX, TWICE.  Edit the four \newcommand metadata lines, then fill the sections.
+% Pull every number from the model's results_*.json so the report stays consistent with the code.
+\documentclass[11pt]{article}
+\usepackage{fontspec}
+\setmainfont{DejaVu Serif}
+\setsansfont{DejaVu Sans}
+\usepackage{polyglossia}        % REQUIRED: Greek hyphenation, else justified text overflows the margin
+\setmainlanguage{greek}
+\setotherlanguage{english}
+\tolerance=2500
+\emergencystretch=3em
+\usepackage{amsmath,amssymb}
+\usepackage{geometry}\geometry{margin=2.4cm}
+\usepackage{xcolor}\usepackage{graphicx}\usepackage{booktabs}
+\usepackage{caption}\captionsetup{font=small,labelfont=bf}
+\usepackage[hidelinks]{hyperref}
+\graphicspath{{figures/}}
+
+\definecolor{ink}{HTML}{16212e}\definecolor{accent}{HTML}{1f5fa8}
+\definecolor{warn}{HTML}{a8341f}\definecolor{good}{HTML}{1f7a44}\color{ink}
+\newcommand{\eur}{€}                     % eurosym is NOT installed — use the unicode glyph
+\setlength{\parskip}{0.45em}\setlength{\parindent}{0pt}
+\usepackage{titlesec}
+\titleformat{\section}{\large\bfseries\color{accent}}{\thesection.}{0.5em}{}
+
+% ===== EDIT THESE FOUR LINES PER MODEL =====
+\newcommand{\modeltitle}{Στρατηγική κανόνα: time-series momentum + volatility targeting}
+\newcommand{\modelsubtitle}{Τεχνική και επιχειρηματική επισκόπηση: μεθοδολογία, ζωντανή λειτουργία στο eToro και αποτελέσματα ελέγχων σε πραγματικά δεδομένα}
+\newcommand{\papertitle}{\emph{«PUT THE JOURNAL-PAPER TITLE HERE»} (Drakos 2026)}
+\newcommand{\reportdate}{2026}
+% ===========================================
+
+\begin{document}
+
+% ---------- COVER ----------
+\begin{titlepage}\centering\thispagestyle{empty}
+\vspace*{3.2cm}
+{\sffamily\bfseries\fontsize{52}{56}\selectfont QUANTIQ}\\[14pt]
+{\sffamily\fontsize{22}{26}\selectfont\color{accent} Deep Learning Trading}\\[3.4cm]
+\rule{0.66\linewidth}{0.4pt}\\[18pt]
+{\large\bfseries \modeltitle}\\[8pt]
+{\normalsize \modelsubtitle}\\[14pt]
+\rule{0.66\linewidth}{0.4pt}
+\vfill
+{\large\bfseries Dr.\ Stefanos Drakos}\\[5pt]
+{\normalsize QUANTIQ \,/\, AGEL AI}\\[3pt]
+{\small \reportdate}
+\end{titlepage}
+
+% ---------- INTRODUCTION (serious, business audience, NON-metaphorical) ----------
+\noindent
+Το παρόν κείμενο απευθύνεται σε επιχειρηματικά στελέχη και επενδυτές που επιθυμούν να κατανοήσουν,
+χωρίς τεχνική ορολογία αλλά και χωρίς υπεραπλουστεύσεις, το σύστημα συναλλαγών που αναπτύξαμε για την
+πλατφόρμα QUANTIQ. % ... περιγράψτε σε 1-2 παραγράφους τι κάνει και σε ποια θεμέλια στηρίζεται.
+Η πλήρης μεθοδολογία τεκμηριώνεται στην ερευνητική εργασία \papertitle. Όλα τα μεγέθη που
+παρατίθενται είναι \textbf{καθαρά μετά το κόστος συναλλαγών} και προέρχονται από περιόδους
+\textbf{εκτός του δείγματος εκπαίδευσης}.
+
+\section{Τι κάνει το σύστημα}
+% Ακριβής, μη-μεταφορική περιγραφή: τι σήμα, τι καλάθι, πώς ζυγίζει, πότε αναπροσαρμόζει.
+
+\section{Πώς εκπαιδεύεται}
+% Δεδομένα (Yahoo, βάθος), τα features, rules vs ML, leak-free walk-forward.
+% \begin{figure}[ht]\centering\includegraphics[width=.74\linewidth]{fig_architecture.png}
+% \caption{...}\end{figure}
+
+\section{Πώς λειτουργεί ζωντανά στο QUANTIQ με eToro}
+% signal -> αντιστοίχιση -> rebalance -> demo execution· πότε κλείνουν θέσεις· το κουμπί ρίσκου + vol-method.
+
+\section{Αποτελέσματα σε πραγματικές τιμές eToro}
+% Παράδειγμα πίνακα — αντικαταστήστε με τα νούμερα από results_*.json:
+\begin{table}[ht]\centering\small
+\begin{tabular}{lrrr}\toprule
+Εκδοχή & IR & Χειρ. πτώση & 10.000\eur{} $\to$ \\\midrule
+\dots & \textcolor{good}{$+0.00$} & \textcolor{warn}{$-0\%$} & \dots\eur{} \\
+\bottomrule\end{tabular}
+\caption{...}
+\end{table}
+% \begin{figure}[ht]\centering\includegraphics[width=.92\linewidth]{fig_etoro_backtest.png}\caption{...}\end{figure}
+
+% ... προσθέστε ενότητες: διαφοροποίηση (5 vs πολλά), long vs long/short, vol ladder,
+% σύγκριση vol-method (static/rolling/ewma), νίκη buy&hold, ML, positioning/sizing, γιατί δουλεύει,
+% κατανομή σε κρίση — η καθεμία με πίνακα ΚΑΙ γράφημα.
+
+\section{Τι να προσέχουμε}
+% Honest caveats: backtest != μέλλον· εξάρτηση από καλάθι/περίοδο· κόστη· stop-loss χειροτερεύει· φάση demo.
+
+\vfill
+\noindent\rule{\linewidth}{0.4pt}\\[2pt]
+{\small QUANTIQ \,/\, AGEL AI. Μεθοδολογία: \papertitle. Όλα τα μεγέθη είναι καθαρά μετά κόστη και
+εκτός δείγματος. Τα ιστορικά αποτελέσματα δεν εγγυώνται μελλοντικές αποδόσεις. Φάση demo.}
+
+\end{document}
