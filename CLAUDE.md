@@ -148,6 +148,13 @@ The key is **lazy**: `config.py` loads `MASSIVE_KEY` at import without raising, 
 
 `back/.env` is the single store for **all** project secrets: `MASSIVE_KEY`, the eToro keys (`ETORO_PUBLIC_KEY`, `ETORO_PRIVATE_KEY`), `FINNHUB_API_KEY` (earnings estimates/surprises — free tier = last 4 quarters only), `GIT_HUB_TOKEN` (used for pushes), and the Microsoft Graph email creds (`CLIENT_ID`, `CLIENT_SECRET`, `TENANT_ID`, `USER_EMAIL`) used to send mail via Graph `/sendMail` (e.g. `tutorials/send_graph_email.py` — base64 done in-process, creds never printed). Never duplicate or hard-code these elsewhere; `back/.env.example` is the committed template.
 
+**GitHub push auth (headless/CI) reads `GIT_HUB_TOKEN` straight from `back/.env`** via the committed credential helper `back/git_credential_env.py` — the token is **never** written into `.git/config` or the remote URL (keeps the "secrets only in `back/.env`" rule). `.git/config` is not committed, so wire it once per clone (repo-local, scoped to github.com; the empty first entry resets any system/global helper so only this one runs):
+```bash
+git config --local credential.https://github.com.helper ""
+git config --local --add credential.https://github.com.helper '!python "<repo>/back/git_credential_env.py"'
+```
+Needs `back/.env` (with `GIT_HUB_TOKEN`) present and `python` on PATH. The helper only answers `get` (emits `username=x-access-token` + the token as password); `store`/`erase` are no-ops.
+
 ### Adding a new strategy
 
 1. Create `trader/strategies/<name>.py`
