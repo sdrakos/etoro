@@ -62,3 +62,28 @@ def stable_center(rows, key, neighbor_span=1):
     centre_val = vals[best_run[len(best_run) // 2]]
     cands = [r for r in rows if r[key] == centre_val]
     return max(cands, key=lambda r: r["net_ir"])
+
+
+def robust_pick(rows, knobs, neighbor_span=1):
+    """Pick the config in the INTERIOR of the best stable plateau across ALL `knobs` jointly
+    (anti-overfit: rewards a config surrounded by other good configs, penalizes isolated spikes
+    and grid-edge cells that have few good neighbours). For each row, score it by its joint
+    neighbourhood (all rows within +/-neighbor_span grid-index on EVERY knob axis); return the
+    max-scoring row. `knobs`: list of knob names that form the grid axes.
+
+    The neighbourhood is summarised by its MEDIAN, not its mean: a single bright spike cannot
+    pull a corner cell's score up (a mean lets one 5.0 outlier win a tiny 4-cell corner), so an
+    isolated argmax/grid-edge spike is rejected and only a genuine plateau (a majority of good
+    neighbours) scores high. Ties break toward the cell with the LARGER neighbourhood (true
+    interior over edge), then the higher own net_ir."""
+    axes = {k: sorted({r[k] for r in rows}) for k in knobs}
+    pos = {k: {v: i for i, v in enumerate(axes[k])} for k in knobs}
+    best, best_key = None, None
+    for r in rows:
+        neigh = [x["net_ir"] for x in rows
+                 if all(abs(pos[k][x[k]] - pos[k][r[k]]) <= neighbor_span for k in knobs)]
+        # median = spike-robust centre of the joint neighbourhood; bigger neighbourhood = interior
+        key = (float(np.median(neigh)), len(neigh), r["net_ir"])
+        if best_key is None or key > best_key:
+            best, best_key = r, key
+    return best

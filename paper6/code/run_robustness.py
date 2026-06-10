@@ -10,7 +10,8 @@ import eval as ev
 import robustness
 import rule
 
-GRID = {"lookback": [21, 42, 63, 126, 252], "band": [0.0, 0.05, 0.10, 0.15, 0.20, 0.30],
+GRID = {"lookback": [21, 42, 63, 126, 252],
+        "band": [0.0, 0.05, 0.10, 0.15, 0.20, 0.30, 0.40, 0.50],
         "target_vol": [0.10, 0.15, 0.20], "smooth_span": [5]}
 
 
@@ -27,8 +28,9 @@ def main():
         return ev.evaluate(pos, fwd, test_rows, spreads, band=band)["net_ir"]
 
     rows = robustness.sweep(GRID, score)
-    base = robustness.stable_center(rows, key="lookback", neighbor_span=1)
+    base = robustness.robust_pick(rows, knobs=["lookback", "band", "target_vol"], neighbor_span=1)
     print(f"[axis1] base config (stable center): {base}")
+    print(f"[axis1] (for contrast) argmax config: {max(rows, key=lambda r: r['net_ir'])}")
     # heatmap: lookback x band at the base target_vol
     import matplotlib
     matplotlib.use("Agg")
