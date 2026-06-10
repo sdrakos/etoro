@@ -11,9 +11,8 @@ import eval as ev
 import rule
 import sizing_dial
 
-import _paths  # noqa: F401 — must precede band_eval/costs bare imports
+import _paths  # noqa: F401 — must precede band_eval bare import
 import band_eval   # noqa: E402  (paper5/code)
-import costs        # noqa: E402  (paper4/code)
 
 BASE = {"lookback": 252, "smooth_span": 5, "band": 0.15}
 
@@ -29,9 +28,9 @@ def main():
         pos = rule.positions(close, lookback=BASE["lookback"], target_vol=cfg["target_vol"],
                              smooth_span=BASE["smooth_span"])
         m = ev.evaluate(pos, fwd, rows, spreads, band=BASE["band"])
+        # EUR uses the SAME per-asset-spread cost model as the net-IR column (not a flat mean)
         W = band_eval.apply_band(pos, BASE["band"])[rows] / N
-        net = costs.net_returns(W, np.nan_to_num(fwd[rows], nan=0.0),
-                                float(np.mean(spreads)), 0.0)
+        net = ev._net_with_per_asset_spreads(W, fwd[rows], spreads)
         eur = sizing_dial.eur_end_value(net)
         print(f"{name:14} {cfg['target_vol']:5.2f} {m['net_ir']:8.2f} {m['max_dd']:8.2%} {eur:10.0f}")
 
