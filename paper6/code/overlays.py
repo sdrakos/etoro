@@ -1,6 +1,7 @@
 """Axis 2 — risk overlays. Each returns a causal (T,N) exposure mask in [0,1] to multiply
-into the desired position path. Pre-registered: an overlay 'wins' only if it cuts maxDD
-without materially lowering net-IR AND improves 2022 (checked in run_overlays.py)."""
+into the desired position path. Pre-registered gate (run_overlays.py): an overlay 'wins'
+only if it cuts maxDD by >=20% without lowering net-IR by more than 0.1; else it is a NULL.
+(2022 durability is reported separately in the findings, not enforced in the verdict.)"""
 from __future__ import annotations
 import os
 import sys
