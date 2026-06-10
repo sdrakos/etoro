@@ -20,3 +20,12 @@ def test_align_closes_drops_partial_rows():
     # first row has a NaN -> dropped; aligned frame has no NaNs
     assert not out.isna().any().any()
     assert len(out) == 3
+
+
+def test_cache_path_distinct_per_ticker_set():
+    # the underlying loader caches by path ignoring tickers, so different baskets
+    # MUST map to different cache files; the same set (any order) maps to the same file.
+    p_five = data._cache_path(("SPY", "TLT", "GLD", "BTC-USD", "UUP"))
+    p_three = data._cache_path(("SPY", "TLT", "GLD"))
+    assert p_five != p_three
+    assert data._cache_path(("SPY", "TLT")) == data._cache_path(("TLT", "SPY"))  # order-independent

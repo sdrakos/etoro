@@ -2,9 +2,9 @@
 """5-asset sweet-spot loader for paper6 (the rule as a standalone strategy).
 Reuses the proven paper5 deep-history Yahoo loader; never re-implements it."""
 from __future__ import annotations
+import hashlib
 import os
 
-import numpy as np
 import pandas as pd
 
 import _paths  # noqa: F401 — puts paper4/code + paper5/code on sys.path
@@ -17,7 +17,11 @@ SWEET_SPOT = ("SPY", "TLT", "GLD", "BTC-USD", "UUP")
 # real per-asset eToro spreads measured in paper5 (bps); used for net-cost eval
 SPREADS_BPS = {"SPY": 2.0, "TLT": 3.0, "GLD": 3.0, "BTC-USD": 31.0, "UUP": 4.0}
 
-CACHE = os.path.join(os.path.dirname(__file__), "paper6_close.npz")
+def _cache_path(tickers) -> str:
+    """A distinct npz cache file per ticker set (the underlying loader caches by path,
+    ignoring tickers — different baskets must not share a cache file)."""
+    key = hashlib.md5("_".join(sorted(tickers)).encode()).hexdigest()[:10]
+    return os.path.join(os.path.dirname(__file__), f"paper6_close_{key}.npz")
 
 
 def align_closes(df: pd.DataFrame) -> pd.DataFrame:
@@ -27,7 +31,7 @@ def align_closes(df: pd.DataFrame) -> pd.DataFrame:
 
 def load_basket(tickers=SWEET_SPOT, period="20y") -> pd.DataFrame:
     """Aligned daily close panel for the basket (deep Yahoo history, npz-cached)."""
-    df = crypto_data.fetch_crypto_daily(tickers=tuple(tickers), period=period, cache_path=CACHE)
+    df = crypto_data.fetch_crypto_daily(tickers=tuple(tickers), period=period, cache_path=_cache_path(tickers))
     return align_closes(df)
 
 
